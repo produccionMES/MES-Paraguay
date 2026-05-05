@@ -9680,9 +9680,6 @@ def limpieza_profunda_posventa():
 @app.route('/descargar_plantilla_devoluciones')
 @login_required
 def descargar_plantilla_devoluciones():
-    import pandas as pd
-    import io
-    from flask import send_file
     
     columnas = [
         'Numero Venta', 'Compra Empresa', 'SKU', 'Producto', 'Cantidad', 
