@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mantenimiento Preventivo</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; padding: 20px; color: #0f172a; margin: 0;}
+        .navbar { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 15px 25px; border-radius: 12px; color: white; margin-bottom: 20px;}
+        .btn-nav { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold;}
+        .grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; align-items: start; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        
+        input, button { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 6px; border: 1px solid #cbd5e1; box-sizing: border-box; font-size: 14px;}
+        button { background: #0f172a; color: white; font-weight: bold; cursor: pointer; border: none; transition: 0.2s;}
+        button:hover { background: #1e293b; }
+        
+        .maq-card { border: 1px solid #e2e8f0; border-left: 6px solid #10b981; padding: 20px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; background: white;}
+        .maq-alerta { border-left-color: #dc2626; background: #fef2f2;}
+        .maq-cerca { border-left-color: #f59e0b; background: #fffbeb;}
+        
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            .maq-card { flex-direction: column; align-items: stretch; gap: 15px;}
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <h2 style="margin: 0;">🚜 Mantenimiento Preventivo (TPM)</h2>
+        <a href="{{ url_for('logistica') }}" class="btn-nav">← Volver a Logística</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="background: {% if category == 'error' %}#fef2f2{% else %}#f0fdf4{% endif %}; 
+                      color: {% if category == 'error' %}#b91c1c{% else %}#15803d{% endif %}; 
+                      padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; 
+                      border: 1px solid {% if category == 'error' %}#fca5a5{% else %}#86efac{% endif %};">
+              {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="grid">
+        <div>
+            <div class="card">
+                <h3 style="margin-top:0; color: #0d6efd; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">➕ Registrar Equipo</h3>
+                <form action="{{ url_for('nueva_maquina') }}" method="POST">
+                    <label style="font-size: 13px; font-weight: bold; color: #475569;">Nombre / Interno</label>
+                    <input type="text" name="nombre" placeholder="Ej: Autoelevador Yale #2" required>
+                    
+                    <label style="font-size: 13px; font-weight: bold; color: #475569;">Detalles (Opcional)</label>
+                    <input type="text" name="descripcion" placeholder="Ej: Controlar batería y aceite">
+                    
+                    <label style="font-size: 13px; font-weight: bold; color: #475569;">Fecha de la PRÓXIMA revisión</label>
+                    <input type="date" name="proxima_revision" required>
+                    
+                    <button type="submit" style="background: #0d6efd; font-size: 15px;">💾 Guardar Equipo en Sistema</button>
+                </form>
+            </div>
+
+            {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+            <div class="card" style="margin-top: 20px; border-top: 4px solid #f59e0b;">
+                <h3 style="margin-top:0; color: #d97706; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">⚙️ Configurar Alertas</h3>
+                <form action="{{ url_for('configurar_alerta_mantenimiento') }}" method="POST">
+                    <label style="font-size: 13px; font-weight: bold; color: #475569;">Lanzar alerta antes de (Días):</label>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                        <input type="number" name="dias" value="{{ dias_alerta }}" min="1" max="365" style="margin: 0; text-align: center; font-weight: bold; font-size: 18px;">
+                        <span style="font-weight: bold; color: #64748b;">DÍAS</span>
+                    </div>
+                    <button type="submit" style="background: #f59e0b; font-size: 14px; color: white;">Guardar Configuración</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+            <h3 style="margin-top:0; background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">📋 Flota Activa y Alertas</h3>
+            
+            {% for m in maquinas %}
+                <div class="maq-card {% if m.dias_restantes < 0 %}maq-alerta{% elif m.dias_restantes <= dias_alerta %}maq-cerca{% endif %}">
+                    <div style="flex: 1; padding-right: 15px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                            <h4 style="margin: 0; font-size: 20px; color: #0f172a;">{{ m.nombre }}</h4>
+                            <form action="{{ url_for('eliminar_maquina', id=m.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('¿Estás seguro de que querés eliminar este equipo definitivamente del sistema?');">
+                                <button type="submit" title="Eliminar equipo" style="background: transparent; border: none; padding: 0; font-size: 16px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <p style="margin: 0; font-size: 14px; color: #64748b;">{{ m.descripcion }}</p>
+                        
+                        <p style="margin: 10px 0 0 0; font-size: 15px; font-weight: bold;">
+                            Próxima revisión: <span style="color: {% if m.dias_restantes < 0 %}#dc2626{% else %}#0f172a{% endif %}">{{ m.fecha_proxima_revision.strftime('%d/%m/%Y') }}</span>
+                            
+                            {% if m.dias_restantes < 0 %}
+                                <span style="color: #dc2626; margin-left: 5px;">(⚠️ Vencido hace {{ m.dias_restantes * -1 }} días)</span>
+                            {% elif m.dias_restantes <= dias_alerta %}
+                                <span style="color: #f59e0b; margin-left: 5px;">(⚠️ Vence en {{ m.dias_restantes }} días)</span>
+                            {% endif %}
+                        </p>
+                        
+                        {% if m.ultima_revision %}
+                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
+                                <p style="margin: 0; font-size: 12px; color: #475569; font-weight: bold;">Último service realizado: {{ m.ultima_revision.strftime('%d/%m/%Y') }}</p>
+                                {% if m.ultimo_comprobante %}
+                                    <p style="margin: 5px 0 0 0; font-size: 13px;">
+                                        <a href="{{ url_for('static', filename='img/mantenimiento/' ~ m.ultimo_comprobante) }}" target="_blank" style="color: #0d6efd; text-decoration: none; font-weight: bold;">
+                                            📄 Ver comprobante guardado
+                                        </a>
+                                    </p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <form action="{{ url_for('completar_mantenimiento', id=m.id) }}" method="POST" enctype="multipart/form-data" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; text-align: left; margin: 0; min-width: 250px;">
+                        
+                        <label style="font-size: 12px; font-weight: bold; display:block; margin-bottom: 5px; color: #475569;">Siguiente Revisión:</label>
+                        <input type="date" name="nueva_fecha" required style="margin-bottom: 15px;">
+                        
+                        <label style="font-size: 12px; font-weight: bold; display:block; margin-bottom: 5px; color: #0d6efd;">📷 Cargar Foto o Archivo (Opcional):</label>
+                        <input type="file" name="foto_comprobante" accept="image/*,application/pdf" style="font-size: 11px; padding: 8px; margin-bottom: 15px; background: white; width: 100%;">
+                        
+                        <button type="submit" style="background: #10b981; margin: 0; font-size: 14px; width: 100%;">✅ Mantenimiento Listo</button>
+                    </form>
+                </div>
+            {% else %}
+                <div style="background: white; padding: 40px; border-radius: 12px; border: 1px dashed #cbd5e1; text-align: center;">
+                    <span style="font-size: 40px;">🚜</span>
+                    <h3 style="color: #64748b; margin-top: 10px;">No hay maquinaria registrada</h3>
+                    <p style="color: #94a3b8; font-size: 14px;">Usá el panel de la izquierda para agregar tu primer equipo al plan de TPM.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

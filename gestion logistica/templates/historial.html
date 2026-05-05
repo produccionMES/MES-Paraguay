@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <title>Historial de Movimientos - {{ sector|capitalize }}</title>
+    <style>
+        /* 2. ANTI-SCROLL FANTASMA Y CAJAS RÍGIDAS */
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; padding: 20px; color: #333; }
+        .contenedor { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+
+        /* ALERTAS DINÁMICAS */
+        .flash-container { margin-bottom: 20px; }
+        .flash-msg { padding: 15px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+
+        /* Encabezado Dinámico por Sector */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 3px solid {% if sector == 'logistica' %}#0d6efd{% else %}#6f42c1{% endif %}; padding-bottom: 15px; gap: 15px; flex-wrap: wrap; }
+        .titulo-sector { margin: 0; color: {% if sector == 'logistica' %}#0d6efd{% else %}#4b2c82{% endif %}; }
+        .btn-volver { text-decoration: none; color: white; padding: 10px 20px; border-radius: 6px; font-weight: bold; transition: 0.3s; background: {% if sector == 'logistica' %}#6c757d{% else %}#6f42c1{% endif %}; white-space: nowrap; }
+        .btn-volver:hover { opacity: 0.8; }
+
+        /* 🔥 ESTILOS DEL PANEL DE FILTROS */
+        .filtros-panel { background: #f8f9fa; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dee2e6; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+        .filtro-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 150px; }
+        .filtro-group label { font-size: 11px; font-weight: bold; color: #6c757d; text-transform: uppercase; }
+        .filtro-input { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; }
+        .btn-filtrar { background: #0d6efd; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; height: 36px; }
+        .btn-filtrar:hover { background: #0b5ed7; }
+        .btn-limpiar { background: #6c757d; color: white; text-decoration: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; font-size: 13px; height: 36px; display: inline-flex; align-items: center; box-sizing: border-box; }
+
+        /* Solapas (Tabs) con scroll horizontal en móvil */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #dee2e6; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+        .tab-button { padding: 12px 20px; cursor: pointer; border: none; background: none; font-weight: bold; color: #6c757d; border-bottom: 3px solid transparent; transition: 0.3s; font-size: 15px; white-space: nowrap; }
+        .tab-button:hover { color: {% if sector == 'logistica' %}#0d6efd{% else %}#6f42c1{% endif %}; }
+        .tab-button.active { color: {% if sector == 'logistica' %}#0d6efd{% else %}#6f42c1{% endif %}; border-bottom: 3px solid {% if sector == 'logistica' %}#0d6efd{% else %}#6f42c1{% endif %}; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Contenedor de Tablas con scroll lateral */
+        .tabla-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 15px; }
+
+        /* Tablas */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; background: white; min-width: 600px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; vertical-align: middle;}
+        th { background-color: #343a40; color: white; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
+        tr:hover { background-color: #f8f9fa; }
+
+        .badge-orden { background-color: #e7f1ff; color: #0d6efd; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #cfe2ff; }
+        .badge-anulado { background-color: #f8d7da; color: #842029; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #f5c2c7; }
+        .badge-sub { background-color: #e9ecef; color: #495057; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+        .badge-reparacion { background-color: #f0e6ff; color: #6f42c1; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #dcd0ff; }
+        .badge-warning { background-color: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #ffeeba; }
+        
+        .texto-negativo { color: #dc3545; font-weight: bold; }
+        .texto-positivo { color: #198754; font-weight: bold; }
+
+        /* Paginación */
+        .paginacion { display: flex; justify-content: center; gap: 5px; margin-top: 20px; padding-bottom: 10px; flex-wrap: wrap; }
+        .page-link { padding: 8px 12px; border: 1px solid #dee2e6; text-decoration: none; color: #495057; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        .page-link.active { background-color: {% if sector == 'logistica' %}#0d6efd{% else %}#6f42c1{% endif %}; color: white; border-color: {% if sector == 'logistica' %}#0d6efd{% else %}#6f42c1{% endif %}; }
+        .page-link:hover:not(.active) { background-color: #e9ecef; }
+        
+        /* 🔥 Estilos del Modal de Observaciones */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(3px);}
+
+        /* 📱 MODO CELULAR */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .contenedor { padding: 15px; }
+            .header { flex-direction: column; text-align: center; }
+            .header div { width: 100%; flex-direction: column; display: flex; gap: 10px; }
+            .header a { width: 100%; justify-content: center; display: flex; text-align: center; }
+            
+            .filtros-panel { flex-direction: column; align-items: stretch; }
+            .filtro-group { min-width: 100%; }
+            .btn-filtrar, .btn-limpiar { width: 100%; justify-content: center; }
+
+            .modal-overlay > div { width: 95% !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="header">
+        <h2 class="titulo-sector">📜 Historial de Movimientos ({{ sector|upper }})</h2>
+        
+        <div style="display: flex; gap: 10px; align-items: center;">
+            {% if current_user.rol in ['admin', 'jefe_logistica', 'jefe_posventa'] %}
+                <a href="{{ url_for('exportar_movimientos', sector=sector) }}" 
+                   style="background: #198754; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.3s;">
+                    📊 Exportar Excel
+                </a>
+            {% endif %}
+
+            {% if sector == 'materias_primas' %}
+                <a href="{{ url_for('materias_primas') }}" class="btn-volver">← Volver a Materias Primas</a>
+            {% elif sector == 'posventa' %}
+                <a href="{{ url_for('posventa') }}" class="btn-volver">← Volver a Posventa</a>
+            {% else %}
+                <a href="{{ url_for('logistica') }}" class="btn-volver">← Volver a Logística</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <form class="filtros-panel" method="GET" action="{{ url_for('historial') }}">
+        <input type="hidden" name="sector" value="{{ sector }}">
+        <input type="hidden" name="tab" value="{{ tab_activa }}" id="input_tab_filtro">
+        
+        <div class="filtro-group">
+            <label>🔍 Buscar SKU / EAN</label>
+            <input type="text" name="q_sku" class="filtro-input" placeholder="Ej: BOMBA-001" value="{{ q_sku }}">
+        </div>
+        <div class="filtro-group">
+            <label>🚚 Carga / Ruta / Ubicación</label>
+            <input type="text" name="q_ref" class="filtro-input" placeholder="Ej: Carga #1503" value="{{ q_ref }}">
+        </div>
+        <div class="filtro-group">
+            <label>👤 Operario / Usuario</label>
+            <input type="text" name="q_operario" class="filtro-input" placeholder="Nombre de usuario" value="{{ q_operario }}">
+        </div>
+        <div class="filtro-group">
+            <label>📅 Fecha exacta</label>
+            <input type="date" name="q_fecha" class="filtro-input" value="{{ q_fecha }}">
+        </div>
+        
+        <button type="submit" class="btn-filtrar">Aplicar Filtros</button>
+        <a href="{{ url_for('historial', sector=sector, tab=tab_activa) }}" class="btn-limpiar">Limpiar</a>
+    </form>
+
+    <div class="tabs">
+        {% if sector == 'posventa' %}
+            <button class="tab-button {% if tab_activa == 'ajustes_tab' %}active{% endif %}" onclick="openTab(event, 'ajustes_tab')">⚙️ Ajustes de Stock</button>
+            <button class="tab-button {% if tab_activa == 'movimientos_tab' %}active{% endif %}" onclick="openTab(event, 'movimientos_tab')">📦 Movimientos Internos</button>
+            <button class="tab-button {% if tab_activa == 'reparaciones_tab' %}active{% endif %}" onclick="openTab(event, 'reparaciones_tab')">⚒️ Reparaciones</button>
+        {% else %}
+            <button class="tab-button {% if tab_activa == 'ingresos_tab' %}active{% endif %}" onclick="openTab(event, 'ingresos_tab')">📥 Ingresos / Nómina</button>
+            <button class="tab-button {% if tab_activa == 'despachos_tab' %}active{% endif %}" onclick="openTab(event, 'despachos_tab')">🚚 Despachos</button>
+            <button class="tab-button {% if tab_activa == 'anulados_tab' %}active{% endif %}" onclick="openTab(event, 'anulados_tab')">🚫 Anulados</button>
+            <button class="tab-button {% if tab_activa == 'incompletos_tab' %}active{% endif %}" onclick="openTab(event, 'incompletos_tab')">⚠️ Pedidos Incompletos</button>
+            <button class="tab-button {% if tab_activa == 'fabrica_tab' %}active{% endif %}" onclick="openTab(event, 'fabrica_tab')">🏭 Pedidos a Fábrica</button>
+            <button class="tab-button {% if tab_activa == 'ajustes_tab' %}active{% endif %}" onclick="openTab(event, 'ajustes_tab')">⚙️ Ajustes de Stock</button>
+            <button class="tab-button {% if tab_activa == 'movimientos_tab' %}active{% endif %}" onclick="openTab(event, 'movimientos_tab')">🔄 Movimientos Internos</button>
+        {% endif %}
+    </div>
+
+    <div id="ajustes_tab" class="tab-content {% if tab_activa == 'ajustes_tab' %}active{% endif %}">
+        <div class="tabla-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>SKU / Producto</th>
+                        <th>Ubicación</th>
+                        <th style="text-align: center;">Anterior</th>
+                        <th style="text-align: center;">Nueva</th>
+                        {% if sector == 'posventa' %}<th>Estado</th>{% endif %}
+                        <th>Motivo</th>
+                        <th>Usuario</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for aj in ajustes.items %}
+                    <tr>
+                        <td>{{ aj.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td><strong>{{ aj.sku }}</strong><br><small>{{ aj.descripcion }}</small></td>
+                        <td><span class="badge-sub">{{ aj.ubicacion.replace('PV-', '').split('-ID')[0] if aj.ubicacion else 'S/D' }}</span></td>
+                        <td style="text-align: center;">{{ aj.cantidad_anterior }}</td>
+                        <td style="text-align: center;" class="{% if aj.cantidad_nueva > aj.cantidad_anterior %}texto-positivo{% else %}texto-negativo{% endif %}">
+                            {{ aj.cantidad_nueva }}
+                        </td>
+                        {% if sector == 'posventa' %}
+                        <td><span class="{{ aj.estado_calidad }}">{{ aj.estado_calidad|upper if aj.estado_calidad else '-' }}</span></td>
+                        {% endif %}
+                        <td style="font-style: italic;">{{ aj.motivo }}</td>
+                        <td><strong>{{ aj.usuario }}</strong></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" style="text-align:center; padding: 30px; color: #999;">No hay coincidencias con esos filtros.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="paginacion">
+            {% if ajustes.has_prev %}
+                <a href="{{ url_for('historial', sector=sector, tab='ajustes_tab', p_aj=ajustes.prev_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">«</a>
+            {% endif %}
+            {% for page_num in ajustes.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                    <a href="{{ url_for('historial', sector=sector, tab='ajustes_tab', p_aj=page_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link {{ 'active' if page_num == ajustes.page else '' }}">{{ page_num }}</a>
+                {% else %}
+                    <span class="page-link" style="border:none;">...</span>
+                {% endif %}
+            {% endfor %}
+            {% if ajustes.has_next %}
+                <a href="{{ url_for('historial', sector=sector, tab='ajustes_tab', p_aj=ajustes.next_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">»</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="movimientos_tab" class="tab-content {% if tab_activa == 'movimientos_tab' %}active{% endif %}">
+        {% if movimientos_internos and movimientos_internos.items %}
+        <div class="tabla-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Operario</th>
+                        <th>Acción / Destino</th>
+                        <th>Origen</th>
+                        <th>SKU</th>
+                        <th>Cant.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movimientos_internos.items %}
+                    <tr>
+                        <td style="white-space: nowrap;">{{ m.fecha.strftime('%d/%m/%Y %H:%M') if m.fecha else 'S/D' }}</td>
+                        <td style="font-weight: bold; color: #0f172a;">{{ m.usuario }}</td>
+                        <td style="color: #0d6efd; font-weight: bold;">{{ m.transporte.replace('PV-', '').split('-ID')[0] if m.transporte else 'S/D' }}</td>
+                        <td style="color: #64748b;">{{ m.origen.replace('PV-', '').split('-ID')[0] if m.origen else 'S/D' }}</td>
+                        <td style="font-weight: 900;">{{ m.sku }}</td>
+                        <td>
+                            <span style="background-color: #f1f5f9; padding: 4px 10px; border-radius: 6px; font-weight: bold;">
+                                {{ m.cantidad }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="paginacion">
+            {% if movimientos_internos.has_prev %}
+                <a href="{{ url_for('historial', sector=sector, tab='movimientos_tab', p_mov=movimientos_internos.prev_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">«</a>
+            {% endif %}
+            {% for page_num in movimientos_internos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                    <a href="{{ url_for('historial', sector=sector, tab='movimientos_tab', p_mov=page_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link {{ 'active' if page_num == movimientos_internos.page else '' }}">{{ page_num }}</a>
+                {% else %}
+                    <span class="page-link" style="border:none;">...</span>
+                {% endif %}
+            {% endfor %}
+            {% if movimientos_internos.has_next %}
+                <a href="{{ url_for('historial', sector=sector, tab='movimientos_tab', p_mov=movimientos_internos.next_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">»</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: #64748b;">
+            <span style="font-size: 40px;">🔄</span>
+            <h3>No hay movimientos internos</h3>
+            <p>Todavía no se registró ninguna reposición o movimiento de estantes.</p>
+        </div>
+        {% endif %}
+    </div>
+
+
+    {% if sector == 'logistica' %}
+        
+        <div id="ingresos_tab" class="tab-content {% if tab_activa == 'ingresos_tab' %}active{% endif %}">
+            <div class="tabla-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>SKU</th>
+                            <th>Cant.</th>
+                            <th>Referencia / Ubic.</th>
+                            <th>Tipo de Carga</th>
+                            <th>Operario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for i in ingresos.items %}
+                        <tr>
+                            <td>{{ i.fecha.strftime('%d/%m %H:%M') }}</td>
+                            <td><strong>{{ i.sku }}</strong></td>
+                            <td class="texto-positivo">+{{ i.cantidad }}</td>
+                            <td>{{ i.origen.split('-ID')[0] if i.origen else 'S/D' }}</td>
+                            <td><span class="badge-sub">{{ i.transporte if i.transporte else 'Carga Masiva' }}</span></td>
+                            <td>{{ i.usuario }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" style="text-align:center; padding: 30px; color: #999;">No hay coincidencias con esos filtros.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="paginacion">
+                {% if ingresos.has_prev %}
+                    <a href="{{ url_for('historial', sector=sector, tab='ingresos_tab', p_in=ingresos.prev_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">«</a>
+                {% endif %}
+                {% for page_num in ingresos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <a href="{{ url_for('historial', sector=sector, tab='ingresos_tab', p_in=page_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link {{ 'active' if page_num == ingresos.page else '' }}">{{ page_num }}</a>
+                    {% else %}
+                        <span class="page-link" style="border:none;">...</span>
+                    {% endif %}
+                {% endfor %}
+                {% if ingresos.has_next %}
+                    <a href="{{ url_for('historial', sector=sector, tab='ingresos_tab', p_in=ingresos.next_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">»</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="despachos_tab" class="tab-content {% if tab_activa == 'despachos_tab' %}active{% endif %}">
+            <div class="tabla-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>SKU</th>
+                            <th>Cant.</th>
+                            <th>Origen</th>
+                            <th>Orden / Transporte</th>
+                            <th>Operario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in despachos.items %}
+                        <tr>
+                            <td>{{ d.fecha.strftime('%d/%m %H:%M') }}</td>
+                            <td><strong>{{ d.sku }}</strong></td>
+                            <td class="texto-negativo">-{{ d.cantidad }}</td>
+                            <td>{{ d.origen.split('-ID')[0] if d.origen else 'S/D' }}</td>
+                            <td><span class="badge-orden">{{ d.transporte if d.transporte else 'Manual' }}</span></td>
+                            <td>{{ d.usuario }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" style="text-align:center; padding: 30px; color: #999;">No hay coincidencias con esos filtros.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="paginacion">
+                {% if despachos.has_prev %}
+                    <a href="{{ url_for('historial', sector=sector, tab='despachos_tab', p_des=despachos.prev_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">«</a>
+                {% endif %}
+                {% for page_num in despachos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <a href="{{ url_for('historial', sector=sector, tab='despachos_tab', p_des=page_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link {{ 'active' if page_num == despachos.page else '' }}">{{ page_num }}</a>
+                    {% else %}
+                        <span class="page-link" style="border:none;">...</span>
+                    {% endif %}
+                {% endfor %}
+                {% if despachos.has_next %}
+                    <a href="{{ url_for('historial', sector=sector, tab='despachos_tab', p_des=despachos.next_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">»</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="anulados_tab" class="tab-content {% if tab_activa == 'anulados_tab' %}active{% endif %}">
+            <div class="tabla-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>SKU</th>
+                            <th>Cant.</th>
+                            <th>Referencia Lote</th>
+                            <th>Detalle / Motivo</th>
+                            <th>Operario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in anulados.items %}
+                        <tr>
+                            <td>{{ a.fecha.strftime('%d/%m %H:%M') }}</td>
+                            <td><strong>{{ a.sku }}</strong></td>
+                            <td style="font-weight: bold;">{{ a.cantidad }}</td>
+                            <td><span class="badge-anulado">{{ a.origen if a.origen else 'S/D' }}</span></td>
+                            <td>
+                                {% if a.transporte and 'Motivo:' in a.transporte %}
+                                    <button type="button" 
+                                            data-texto="{{ a.transporte }}" 
+                                            onclick="mostrarObservacion(this.getAttribute('data-texto'))" 
+                                            style="background: #ffc107; color: #854d0e; border: 1px solid #ffeeba; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s;">
+                                        👁️ Ver Excepción
+                                    </button>
+                                {% else %}
+                                    <span style="font-size: 12px; color: #6c757d;">{{ a.transporte if a.transporte else '-' }}</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ a.usuario }}</strong></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" style="text-align:center; padding: 30px; color: #999;">No hay coincidencias con esos filtros.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="paginacion">
+                {% if anulados.has_prev %}
+                    <a href="{{ url_for('historial', sector=sector, tab='anulados_tab', p_anu=anulados.prev_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">«</a>
+                {% endif %}
+                {% for page_num in anulados.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <a href="{{ url_for('historial', sector=sector, tab='anulados_tab', p_anu=page_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link {{ 'active' if page_num == anulados.page else '' }}">{{ page_num }}</a>
+                    {% else %}
+                        <span class="page-link" style="border:none;">...</span>
+                    {% endif %}
+                {% endfor %}
+                {% if anulados.has_next %}
+                    <a href="{{ url_for('historial', sector=sector, tab='anulados_tab', p_anu=anulados.next_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">»</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="incompletos_tab" class="tab-content {% if tab_activa == 'incompletos_tab' %}active{% endif %}">
+            <div class="tabla-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Ruta / Lote</th>
+                            <th>SKU Faltante</th>
+                            <th>Cant. Faltante</th>
+                            <th>Cierre Autorizado Por</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if incompletos %}
+                            {% for inc in incompletos.items %}
+                            <tr>
+                                <td>{{ inc.fecha.strftime('%d/%m %H:%M') if inc.fecha else 'S/D' }}</td>
+                                <td><span class="badge-warning">{{ inc.origen }}</span></td>
+                                {% if inc.sku == '⚠️ CIERRE FORZADO' %}
+                                    <td>
+                                        <button type="button" 
+                                                 data-texto="{{ inc.transporte }}" 
+                                                 onclick="mostrarObservacion(this.getAttribute('data-texto'))" 
+                                                 style="background: #ffc107; color: #854d0e; border: 1px solid #ffeeba; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s;">
+                                            👁️ Ver Motivo
+                                        </button>
+                                    </td>
+                                    <td style="text-align: center; color: #adb5bd;">-</td>
+                                {% else %}
+                                    <td><strong>{{ inc.sku }}</strong></td>
+                                    <td class="texto-negativo">-{{ inc.cantidad }} u.</td>
+                                {% endif %}
+                                <td><strong>{{ inc.usuario }}</strong></td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" style="text-align:center; padding: 40px; color: #198754; font-weight: bold;">🎉 ¡Excelente! No hay registros con esos filtros.</td></tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if incompletos %}
+            <div class="paginacion">
+                {% if incompletos.has_prev %}
+                    <a href="{{ url_for('historial', sector=sector, tab='incompletos_tab', p_inc=incompletos.prev_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">«</a>
+                {% endif %}
+                {% for page_num in incompletos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <a href="{{ url_for('historial', sector=sector, tab='incompletos_tab', p_inc=page_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link {{ 'active' if page_num == incompletos.page else '' }}">{{ page_num }}</a>
+                    {% else %}
+                        <span class="page-link" style="border:none;">...</span>
+                    {% endif %}
+                {% endfor %}
+                {% if incompletos.has_next %}
+                    <a href="{{ url_for('historial', sector=sector, tab='incompletos_tab', p_inc=incompletos.next_num, q_sku=q_sku, q_operario=q_operario, q_ref=q_ref, q_fecha=q_fecha) }}" class="page-link">»</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div id="fabrica_tab" class="tab-content {% if tab_activa == 'fabrica_tab' %}active{% endif %}">
+            <div class="tabla-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha Solicitud</th>
+                            <th>SKU / Producto</th>
+                            <th style="text-align: center;">Cant.</th>
+                            <th style="text-align: center;">Prioridad</th> <th>Ruta / Destino</th>
+                            <th>Estado Fábrica</th>
+                            <th>Tiempos (Inicio / Fin)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if pedidos_fabrica %}
+                            {% for f in pedidos_fabrica.items %}
+                            <tr>
+                                <td>{{ f.fecha_solicitud.strftime('%d/%m %H:%M') if f.fecha_solicitud else 'S/D' }}</td>
+                                <td><strong>{{ f.sku }}</strong><br><small style="color:#6c757d;">{{ f.descripcion }}</small></td>
+                                <td style="text-align: center; font-weight: bold; color: #0d6efd;">{{ f.cantidad }}</td>
+                                
+                                <td style="text-align: center;">
+                                    {% if f.prioridad == 'Urgente' %}
+                                        <span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">🚨 URGENTE</span>
+                                    {% elif f.prioridad == 'Baja' %}
+                                        <span style="background: #6c757d; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">BAJA</span>
+                                    {% else %}
+                                        <span style="background: #198754; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">NORMAL</span>
+                                    {% endif %}
+                                </td>
+
+                                <td><span class="badge-sub">{{ f.lote_referencia if f.lote_referencia else 'Manual' }}</span></td>
+                                <td>
+                                    {% if f.estado == 'Pendiente' %}
+                                        <span style="background: #e2e8f0; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">PENDIENTE</span>
+                                    {% elif f.estado == 'En Proceso' %}
+                                        <span style="background: #fd7e14; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">EN PROCESO</span>
+                                    {% else %}
+                                        <span style="background: #198754; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">{{ f.estado|upper }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="font-size: 12px; color: #495057; line-height: 1.4;">
+                                    {% if f.fecha_inicio %}
+                                        🟢 <b>Empezaron:</b> {{ f.fecha_inicio.strftime('%d/%m %H:%M') }} <br>
+                                    {% endif %}
+                                    {% if f.fecha_fin %}
+                                        🏁 <b>Terminaron:</b> {{ f.fecha_fin.strftime('%d/%m %H:%M') }}
+                                    {% endif %}
+                                    {% if not f.fecha_inicio and not f.fecha_fin %}
+                                        <span style="color:#adb5bd; font-style:italic;">Esperando operario...</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="7" style="text-align:center; padding: 30px; color: #999;">No hay pedidos a fábrica registrados.</td></tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+        
+        <div id="reparaciones_tab" class="tab-content {% if tab_activa == 'reparaciones_tab' %}active{% endif %}">
+            <div style="background: #fcfaff; border: 2px dashed #dcd0ff; padding: 50px; text-align: center; border-radius: 8px;">
+                <h3 style="color: #6f42c1;">🔧 Módulo de Reparaciones Técnicas</h3>
+                <p style="color: #6c757d;">Aquí se reflejarán los ingresos y egresos realizados por los técnicos.</p>
+                <span class="badge-reparacion">Próximamente disponible</span>
+            </div>
+        </div>
+    {% endif %}
+
+</div>
+
+<div id="modalObservacion" class="modal-overlay">
+    <div style="background: white; padding: 25px; border-radius: 12px; width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <h3 style="margin-top: 0; color: #b91c1c; border-bottom: 2px solid #fecaca; padding-bottom: 10px;">⚠️ Detalle de Excepción</h3>
+        <p id="textoObservacion" style="font-size: 15px; color: #333; line-height: 1.6; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px; white-space: pre-wrap;"></p>
+        <button onclick="cerrarObservacion()" style="background: #6c757d; color: white; border: none; padding: 12px 15px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s;">Cerrar</button>
+    </div>
+</div>
+
+<script>
+    function openTab(evt, tabName) {
+        var tabcontent = document.getElementsByClassName("tab-content");
+        for (var i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+            tabcontent[i].classList.remove("active");
+        }
+        
+        var tablinks = document.getElementsByClassName("tab-button");
+        for (var i = 0; i < tablinks.length; i++) {
+            tablinks[i].classList.remove("active");
+        }
+        
+        document.getElementById(tabName).style.display = "block";
+        document.getElementById(tabName).classList.add("active");
+        evt.currentTarget.classList.add("active");
+
+        var inputTabFiltro = document.getElementById('input_tab_filtro');
+        if(inputTabFiltro) inputTabFiltro.value = tabName;
+
+        var url = new URL(window.location);
+        url.searchParams.set('tab', tabName);
+        window.history.pushState({}, '', url);
+    }
+
+    function mostrarObservacion(texto) {
+        const textoFormateado = texto.replace(' | ', '\n\n'); 
+        document.getElementById('textoObservacion').innerText = textoFormateado;
+        document.getElementById('modalObservacion').style.display = 'flex';
+    }
+
+    function cerrarObservacion() {
+        document.getElementById('modalObservacion').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>

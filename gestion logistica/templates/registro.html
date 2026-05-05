@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP - Crear Usuario</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h2 { margin-top: 0; color: #333; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 12px; background-color: #0d6efd; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background-color: #0b5ed7; }
+        .btn-volver { display: block; text-align: center; margin-top: 20px; color: #6c757d; text-decoration: none; font-size: 14px; }
+        
+        /* 🔥 Estilo para el campo bloqueado */
+        .input-bloqueado { background-color: #e9ecef; color: #6c757d; cursor: not-allowed; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>👤 Nuevo Usuario</h2>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div style="background: {% if category == 'error' %}#f8d7da{% else %}#d1e7dd{% endif %}; 
+                          color: {% if category == 'error' %}#842029{% else %}#0f5132{% endif %}; 
+                          padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 14px; text-align: center; border: 1px solid {% if category == 'error' %}#f5c2c7{% else %}#badbcc{% endif %};">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('registro', sector=sector_origen) }}" method="POST">
+            
+            <div class="form-group">
+                <label>Nombre de Usuario</label>
+                <input type="text" name="username" required autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" name="password" required>
+            </div>
+            
+            <input type="hidden" name="sector" value="{{ sector_origen }}">
+            <div class="form-group">
+                <label>Sector Asignado</label>
+                <input type="text" value="{% if sector_origen == 'posventa' %}🤝 Posventa{% elif sector_origen == 'produccion' %}⚙️ Producción{% elif sector_origen == 'materias_primas' %}🏗️ Materias Primas{% elif sector_origen == 'ventas' %}📈 Ventas{% else %}🗺️ Logística{% endif %}" readonly class="input-bloqueado">
+            </div>
+
+            <div class="form-group">
+                <label>Rol del Usuario</label>
+                <select name="rol" required>
+                    
+                    {% if sector_origen == 'posventa' %}
+                        <option value="admin">⭐ Administrador Full</option>
+                        <option value="jefe_posventa">Jefe Posventa</option>
+                        <option value="tecnico">Técnico (Taller)</option>
+                        <option value="administrativo">Administrativo</option>
+                    
+                    {% elif sector_origen == 'produccion' %}
+                        <option value="admin">⭐ Administrador Full</option>
+                        <option value="supervisor_produccion">👀 Supervisor de Producción</option>
+                        <option value="operario_produccion">⚙️ Operario de Producción</option>
+
+                    {% elif sector_origen == 'ventas' %}
+                        <option value="admin">⭐ Administrador Full</option>
+                        <option value="jefe_ventas">📊 Jefe de Ventas (Gestiona Equipo)</option>
+                        <option value="admin_ventas">📝 Administrativo (Solo Carga de Ventas)</option>
+                        <option value="vendedor">💼 Vendedor / Comercial</option>
+                        <option value="consultas">🔍 Consultas de Stock</option>
+
+                    {% elif sector_origen == 'materias_primas' %}
+                        <option value="admin">⭐ Administrador Full</option>
+                        <option value="encargado">Encargado de Materias Primas</option>
+                        <option value="operario_materias_primas">📦 Operario de Materias Primas</option>
+
+                    {% else %}
+                        <option value="operario">📦 Operario Logística</option>
+                        <option value="jefe_logistica">🔑 Jefe de Logística</option>
+                        <option value="ruteador">🚚 Ruteador / Despachos</option>
+                        <option value="admin">⭐ Administrador Full</option>
+                        <option value="supervisor">👀 Supervisor</option>
+                        <option value="stock">🔍 Control de Stock</option>
+                        <option value="consultas">Auditor / Consultas (Solo Lectura)</option>
+                    {% endif %}
+
+                </select>
+            </div>
+            
+            <button type="submit">Crear Usuario</button>
+        </form>
+
+        <a href="{{ url_for('gestionar_usuarios', sector=sector_origen) }}" class="btn-volver">← Cancelar y Volver</a>
+    </div>
+
+</body>
+</html>

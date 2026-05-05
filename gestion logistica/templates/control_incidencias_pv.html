@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Control de Incidencias - Posventa</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; margin: 20px; }
+        .contenedor { max-width: 1200px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #6f42c1; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        
+        /* 🔥 SOLAPAS DE FILTRO 🔥 */
+        .tabs-container { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { text-decoration: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; font-size: 14px; color: #4b2c82; background: #f3e8ff; border: 1px solid #dcd0ff; transition: 0.3s; }
+        .tab-btn:hover { background: #e9d5ff; }
+        .tab-active { background: #6f42c1; color: white; border-color: #6f42c1; }
+        
+        /* 🔥 BOTÓN EXCEL 🔥 */
+        .btn-excel { background: #198754; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; transition: 0.3s; }
+        .btn-excel:hover { background: #157347; }
+
+        /* 🔥 CONTENEDOR RESPONSIVE PARA TABLA 🔥 */
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 800px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f8fafc; color: #475569; font-size: 12px; text-transform: uppercase; }
+        
+        /* 🔥 LÓGICA DE ALERTA ROJA 🔥 */
+        .fila-urgente { background-color: #fef2f2 !important; } /* Rojo muy clarito de fondo */
+        .badge-rojo { background: #dc3545; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold; animation: pulse 2s infinite; display: inline-block;}
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+
+        .btn-recibir { background: #198754; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; box-sizing: border-box;}
+        
+        .status-pill { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block; text-align: center;}
+        .status-abierto { background: #fef3c7; color: #92400e; }
+        .status-recibido { background: #dcfce7; color: #166534; }
+        .status-cerrado { background: #e2e8f0; color: #475569; }
+
+        @media (max-width: 768px) {
+            body { margin: 10px; }
+            .contenedor { padding: 15px; }
+            .header { flex-direction: column; align-items: stretch; text-align: center; }
+            .tabs-container { justify-content: center; }
+            .tab-btn { flex: 1; text-align: center; min-width: 100px;}
+            .btn-excel { width: 100%; justify-content: center; margin-top: 10px;}
+        }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div style="margin-bottom: 20px;">
+              {% for category, message in messages %}
+                <div style="padding: 15px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; text-align: center; 
+                            {% if category == 'error' %} background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7;
+                            {% else %} background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; {% endif %}">
+                  {{ message }}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <div class="header">
+            <h2 style="color: #4b2c82; margin: 0;">📋 Control de Incidencias</h2>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
+                <a href="{{ url_for('exportar_incidencias', estado=estado_filtro) }}" class="btn-excel">📊 Exportar a Excel</a>
+                <a href="{{ url_for('posventa') }}" style="text-decoration: none; color: #666; font-weight: bold; padding: 8px 15px; border: 1px solid #ccc; border-radius: 6px;">← Volver</a>
+            </div>
+        </div>
+
+        <div class="tabs-container">
+            <a href="{{ url_for('control_incidencias_pv', estado='pendientes') }}" class="tab-btn {% if estado_filtro == 'pendientes' %}tab-active{% endif %}">🛠️ En Taller / Recibidos</a>
+            <a href="{{ url_for('control_incidencias_pv', estado='abiertos') }}" class="tab-btn {% if estado_filtro == 'abiertos' %}tab-active{% endif %}">📦 Esperando Recepción</a>
+            <a href="{{ url_for('control_incidencias_pv', estado='cerrados') }}" class="tab-btn {% if estado_filtro == 'cerrados' %}tab-active{% endif %}">✅ Cerrados</a>
+            <a href="{{ url_for('control_incidencias_pv', estado='todos') }}" class="tab-btn {% if estado_filtro == 'todos' %}tab-active{% endif %}">📁 Ver Todo</a>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Días Transcurridos</th>
+                        <th>Estado</th>
+                        <th>Cliente / Producto</th>
+                        <th>Venta Ref.</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tickets %}
+                        {% set dias = 0 %}
+                        {% if t.fecha_reclamo %}
+                            {% set dias = (datetime.now().date() - t.fecha_reclamo).days %}
+                            {# 🔥 PARCHE PARA FECHAS FUTURAS: Si alguien carga mal la fecha y da negativo, forzamos a 0 #}
+                            {% if dias < 0 %}
+                                {% set dias = 0 %}
+                            {% endif %}
+                        {% endif %}
+                        
+                        <tr class="{% if dias > 15 and t.estado != 'Cerrado' %}fila-urgente{% endif %}">
+                            <td><strong>{{ t.numero_reclamo }}</strong></td>
+                            <td>
+                                {% if t.estado == 'Cerrado' %}
+                                    <span style="color: #94a3b8; font-weight: bold;">-</span>
+                                {% elif dias > 15 %}
+                                    <span class="badge-rojo">⚠️ {{ dias }} DÍAS</span>
+                                {% else %}
+                                    <span style="font-weight: bold; color: #475569;">{{ dias }} días</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-pill 
+                                    {% if t.estado == 'Abierto' %}status-abierto
+                                    {% elif t.estado == 'Cerrado' %}status-cerrado
+                                    {% else %}status-recibido{% endif %}">
+                                    {{ t.estado|upper }}
+                                </span>
+                            </td>
+                            <td>
+                                <strong>{{ t.nombre_cliente }}</strong><br>
+                                <small>{{ t.sku }} - {{ t.producto }}</small>
+                            </td>
+                            <td>{{ t.numero_venta }}</td>
+                            <td>
+                                {% if t.estado == 'Abierto' %}
+                                <form action="{{ url_for('recibir_por_codigo') }}" method="POST" style="margin:0;">
+                                    <input type="hidden" name="codigo_ticket" value="{{ t.numero_reclamo }}">
+                                    <button type="submit" class="btn-recibir">📥 Recibir Caja</button>
+                                </form>
+                                {% elif t.estado == 'Cerrado' %}
+                                    <span style="color: #475569; font-weight: bold; font-size: 12px;">🔒 Archivo</span>
+                                {% else %}
+                                    <span style="color: #198754; font-weight: bold;">✓ En Depósito</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8; font-weight: bold;">
+                                No hay incidencias en esta categoría.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</body>
+</html>

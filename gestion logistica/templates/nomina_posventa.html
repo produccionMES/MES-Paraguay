@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nómina de Productos - Posventa</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #fcfaff; margin: 0; }
+        .navbar { background: #6f42c1; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .header-acciones { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        
+        /* Buscador adaptable */
+        .search-form { flex-grow: 1; display: flex; gap: 10px; min-width: 300px; }
+        .search-input { flex-grow: 1; padding: 12px; border: 1px solid #dcd0ff; border-radius: 8px; font-size: 15px; outline: none; width: 100%; }
+        .search-input:focus { border-color: #6f42c1; box-shadow: 0 0 5px rgba(111, 66, 193, 0.2); }
+        
+        /* 🔥 CONTENEDOR DE TABLA PARA MÓVIL 🔥 */
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+
+        .tabla-nomina { width: 100%; border-collapse: collapse; min-width: 600px; }
+        .tabla-nomina th { background: #4b2c82; color: white; padding: 15px; text-align: left; cursor: pointer; white-space: nowrap; }
+        .tabla-nomina th:hover { background: #3a2265; }
+        .tabla-nomina td { padding: 15px; border-bottom: 1px solid #f0eeff; font-size: 14px; }
+        
+        .btn-borrar { background: #dc3545; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-vaciar { background: #343a40; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-buscar-pro { background: #6f42c1; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+
+        .btn-volver { color: white; text-decoration: none; font-weight: bold; border: 1px solid white; padding: 8px 15px; border-radius: 6px; transition: 0.3s; font-size: 14px; }
+        .btn-volver:hover { background: white; color: #6f42c1; }
+        
+        .badge-modelo-pv { background: #f0e6ff; color: #6f42c1; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #dcd0ff; display: inline-block; }
+
+        /* 📱 AJUSTES PARA PANTALLAS CHICAS */
+        @media (max-width: 768px) {
+            .navbar { flex-direction: column; gap: 10px; text-align: center; padding: 15px; }
+            .header-acciones { flex-direction: column; align-items: stretch; }
+            .search-form { flex-direction: row; min-width: 100%; }
+            .btn-vaciar { width: 100%; margin-top: 5px; }
+            .container { padding: 10px; }
+            .tabla-nomina td, .tabla-nomina th { padding: 10px; font-size: 13px; }
+            .btn-volver { width: 100%; text-align: center; box-sizing: border-box; }
+            
+            /* Ajuste de botones de paginación en móvil */
+            .pagination-link { padding: 8px 12px !important; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <h2 style="margin:0;">🤝 Nómina de Productos (Posventa)</h2>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        {% if origen == 'comercial' %}
+            <a href="{{ url_for('comercial') }}" class="btn-volver">⬅️ Volver a Comercial</a>
+        {% else %}
+            <a href="{{ url_for('posventa') }}" class="btn-volver">⬅️ Volver a Posventa</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container">
+    <div class="header-acciones">
+        <form action="{{ url_for('nomina_posventa') }}" method="GET" class="search-form">
+            <input type="hidden" name="origen" value="{{ origen }}">
+            <input type="text" name="q" value="{{ q or '' }}" id="searchInput" onkeyup="filterTable()" placeholder="🔍 Buscar por SKU o descripción..." class="search-input">
+            <button type="submit" class="btn-buscar-pro">🔍 Buscar</button>
+        </form>
+        
+        {% if current_user.rol in ['admin', 'jefe_posventa'] %}
+        <form action="{{ url_for('vaciar_nomina_posventa') }}" method="POST" onsubmit="return confirm('⚠️ ¿Estás seguro de vaciar TODA la nómina de Posventa?');">
+            <button type="submit" class="btn-vaciar">💣 Vaciar Nómina</button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if q %}
+        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">
+            Mostrando resultados para: <strong>"{{ q }}"</strong> 
+            <a href="{{ url_for('nomina_posventa', origen=origen) }}" style="color: #dc3545; text-decoration: none; margin-left: 10px;">❌ Quitar Filtro</a>
+        </p>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div style="margin-bottom: 20px;">
+          {% for category, message in messages %}
+            <div style="padding: 15px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; text-align: center; 
+                        {% if category == 'error' %} background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7;
+                        {% else %} background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; {% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="table-responsive">
+        <table class="tabla-nomina" id="tablaNomina">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">SKU ↕</th>
+                    <th onclick="sortTable(1)">Descripción ↕</th>
+                    <th onclick="sortTable(2)">Modelo ↕</th>
+                    <th onclick="sortTable(3)">EAN ↕</th>
+                    {% if current_user.rol in ['admin', 'jefe_posventa'] %}
+                    <th style="text-align: center; cursor: default;">Acciones</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody id="nominaBody">
+                {% for p in productos %}
+                <tr>
+                    <td><strong>{{ p.sku }}</strong></td>
+                    <td>{{ p.descripcion }}</td>
+                    <td><span class="badge-modelo-pv">{{ p.modelo or '-' }}</span></td>
+                    <td style="color: #666;">{{ p.ean or '-' }}</td>
+                    
+                    {% if current_user.rol in ['admin', 'jefe_posventa'] %}
+                    <td style="text-align: center;">
+                        <form action="{{ url_for('eliminar_producto', producto_id=p.id) }}" method="POST" onsubmit="return confirm('¿Eliminar este producto?');">
+                            <button type="submit" class="btn-borrar">Eliminar</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ 5 if current_user.rol in ['admin', 'jefe_posventa'] else 4 }}" style="text-align: center; padding: 40px; color: #999;">
+                        No se encontraron productos en la nómina.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; padding-bottom: 50px;">
+        
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('nomina_posventa', page=pagination.prev_num, q=q, origen=origen) }}" 
+               class="pagination-link" style="padding: 10px 15px; background: white; border: 1px solid #6f42c1; color: #6f42c1; text-decoration: none; border-radius: 5px; font-weight: bold;">« Anterior</a>
+        {% endif %}
+
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+                {% if page_num == pagination.page %}
+                    <span class="pagination-link" style="padding: 10px 15px; background: #6f42c1; color: white; border-radius: 5px; font-weight: bold;">{{ page_num }}</span>
+                {% else %}
+                    <a href="{{ url_for('nomina_posventa', page=page_num, q=q, origen=origen) }}" 
+                       class="pagination-link" style="padding: 10px 15px; background: white; border: 1px solid #dcd0ff; color: #333; text-decoration: none; border-radius: 5px;">{{ page_num }}</a>
+                {% endif %}
+            {% else %}
+                <span style="padding: 10px 15px;">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+            <a href="{{ url_for('nomina_posventa', page=pagination.next_num, q=q, origen=origen) }}" 
+               class="pagination-link" style="padding: 10px 15px; background: white; border: 1px solid #6f42c1; color: #6f42c1; text-decoration: none; border-radius: 5px; font-weight: bold;">Siguiente »</a>
+        {% endif %}
+    </div>
+    
+    <p style="text-align: center; color: #666; font-size: 13px;">
+        Mostrando página {{ pagination.page }} de {{ pagination.pages }} (Total: {{ pagination.total }} productos)
+    </p>
+
+</div>
+
+<script>
+    let typingTimer;
+    const doneTypingInterval = 500; // ⏱️ Espera medio segundo (500ms) después de que dejás de teclear
+
+    function filterTable() {
+        const input = document.getElementById("searchInput");
+        const valor = input.value.trim();
+
+        // 1. ⚡ FILTRO VISUAL INMEDIATO (Oculta lo que no sirve en la página actual)
+        let rows = document.getElementById("nominaBody").getElementsByTagName("tr");
+        for (let i = 0; i < rows.length; i++) {
+            let rowText = rows[i].innerText.toUpperCase();
+            rows[i].style.display = rowText.includes(valor.toUpperCase()) ? "" : "none";
+        }
+
+        // 2. 🚀 BÚSQUEDA PROFUNDA EN EL SERVIDOR (Para buscar en las otras páginas ocultas)
+        clearTimeout(typingTimer);
+        
+        // Si el usuario escribió 3 letras o más, o si borró todo para volver al inicio...
+        if (valor.length >= 3 || valor.length === 0) {
+            // Arranca el cronómetro. Si no toca ninguna tecla por medio segundo, busca solo.
+            typingTimer = setTimeout(() => {
+                input.closest('form').submit(); // Hace el "Enter" automático
+            }, doneTypingInterval);
+        }
+    }
+
+    // 🎯 TRUCO DE UX: Mantener el cursor parpadeando al final del texto después de buscar
+    window.onload = function() {
+        const input = document.getElementById("searchInput");
+        if(input && input.value.length > 0) {
+            input.focus();
+            let val = input.value;
+            input.value = '';
+            input.value = val;
+        }
+    };
+
+    // ↕️ ORDENADOR DE COLUMNAS (El que ya tenías)
+    function sortTable(n) {
+        let table = document.getElementById("tablaNomina");
+        let rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+        switching = true; dir = "asc";
+        while (switching) {
+            switching = false; rows = table.rows;
+            for (i = 1; i < (rows.length - 1); i++) {
+                shouldSwitch = false;
+                x = rows[i].getElementsByTagName("TD")[n];
+                y = rows[i + 1].getElementsByTagName("TD")[n];
+                if (dir == "asc" && x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                    shouldSwitch = true; break;
+                } else if (dir == "desc" && x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                    shouldSwitch = true; break;
+                }
+            }
+            if (shouldSwitch) {
+                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                switching = true; switchcount++;
+            } else if (switchcount == 0 && dir == "asc") {
+                dir = "desc"; switching = true;
+            }
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control de Vencimientos</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        .contenedor { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; margin-bottom: 20px; }
+        .btn-volver { text-decoration: none; background: #6c757d; color: white; padding: 10px 18px; border-radius: 6px; font-weight: bold; transition: 0.3s; }
+        .btn-volver:hover { background: #5a6268; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; border-radius: 8px; overflow: hidden; }
+        th, td { border: 1px solid #dee2e6; padding: 15px 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #f8f9fa; font-size: 13px; text-transform: uppercase; color: #495057; }
+        
+        .badge-ubicacion { background: #198754; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; white-space: nowrap; }
+        .badge-ubicacion:hover { background: #157347; transform: scale(0.98); }
+        
+        .badge-sub { background: #0d6efd; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        
+        .urgente { background-color: #fff5f5; border-left: 4px solid #dc3545; }
+        .advertencia { background-color: #fffaf0; border-left: 4px solid #fd7e14; }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="header">
+        <div>
+            <h1 style="margin: 0; font-size: 24px; color: #dc3545; display: flex; align-items: center; gap: 10px;">
+                🚨 Panel de Alertas de Vencimiento
+            </h1>
+            <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">
+                Mostrando lotes vencidos o por vencer en los próximos {{ dias_alerta }} días.
+            </p>
+        </div>
+        <a href="{{ url_for('logistica') }}" class="btn-volver">🏠 Volver al Inicio</a>
+    </div>
+
+    {# ⚙️ PANEL DE CONFIGURACIÓN (Solo para Jefes/Admin) #}
+    {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dee2e6; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 14px; color: #495057;"><strong>⚙️ Configuración:</strong> Definir cuántos días antes avisar el vencimiento.</span>
+        <form action="{{ url_for('configurar_vencimiento') }}" method="POST" style="display: flex; gap: 10px;">
+            <input type="number" name="dias" value="{{ dias_alerta }}" min="1" max="365" style="width: 80px; padding: 5px; border-radius: 4px; border: 1px solid #ced4da;">
+            <button type="submit" style="background: #212529; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                Actualizar Rango
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if not items %}
+        <div style="background-color: #d1e7dd; color: #0f5132; padding: 20px; text-align: center; border-radius: 8px; border: 2px dashed #198754;">
+            <h3 style="margin: 0;">✅ ¡Todo en orden!</h3>
+            <p style="margin: 5px 0 0 0;">No tenés ningún lote próximo a vencer en los próximos 30 días.</p>
+        </div>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Estado / Alerta</th>
+                    <th>SKU / Producto</th>
+                    <th>Lote / Sub-div</th>
+                    <th style="text-align: center;">Fecha Venc.</th>
+                    <th style="text-align: center;">Stock</th>
+                    <th>Ubicación Física</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr class="{% if item.dias_restantes < 0 %}urgente{% else %}advertencia{% endif %}">
+                    
+                    <td>
+                        {% if item.dias_restantes < 0 %}
+                            <span style="color: #dc3545; font-weight: 900; font-size: 13px;">❌ VENCIDO</span><br>
+                            <span style="font-size: 11px; color: #6c757d;">Hace {{ item.dias_restantes * -1 }} días</span>
+                        {% elif item.dias_restantes == 0 %}
+                            <span style="color: #dc3545; font-weight: 900; font-size: 13px;">🚨 VENCE HOY</span>
+                        {% else %}
+                            <span style="color: #fd7e14; font-weight: 900; font-size: 13px;">⚠️ PRONTO A VENCER</span><br>
+                            <span style="font-size: 11px; color: #6c757d;">En {{ item.dias_restantes }} días</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <strong>{{ item.producto_detalle.sku }}</strong><br>
+                        <small style="color: #555;">{{ item.producto_detalle.descripcion }}</small>
+                    </td>
+                    
+                    <td>
+                        <strong>Lote:</strong> {{ item.lote }}<br>
+                        <span class="badge-sub" style="margin-top: 5px; display: inline-block;">{{ item.sub_ubicacion if item.sub_ubicacion else 'General' }}</span>
+                    </td>
+                    
+                    <td style="font-size: 16px; font-weight: bold; text-align: center; color: #333;">
+                        {{ item.fecha_vencimiento }}
+                    </td>
+
+                    <td style="font-size: 18px; font-weight: bold; color: #0d6efd; text-align: center;">
+                        {{ item.cantidad }}
+                    </td>
+                    
+                    <td>
+                        <strong style="color: #212529;">📍 {{ item.ubicacion.rack.nombre }}</strong><br>
+                        <span style="font-size: 12px; color: #6c757d;">Pos: {{ item.ubicacion.codigo_unico.replace('PV-', '').replace('MP-', '').replace('LO-', '').split('-ID')[0] }}</span>
+                    </td>
+
+                    <td>
+                        <a href="{{ url_for('detalle_ubicacion', rack_id=item.ubicacion.rack_id, nivel=item.ubicacion.nivel, pos=item.ubicacion.posicion) }}" class="badge-ubicacion" title="Ir a la posición para gestionar">
+                            Gestión Física ➔
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+</body>
+</html>

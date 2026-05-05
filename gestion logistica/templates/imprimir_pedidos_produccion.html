@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Hoja de Ruta - Producción</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+        h1 { color: #0f172a; margin: 0 0 5px 0; font-size: 24px; text-transform: uppercase; }
+        p { color: #64748b; margin: 0; font-size: 14px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #cbd5e1; padding: 12px 10px; text-align: left; font-size: 13px; }
+        th { background-color: #f1f5f9; color: #0f172a; font-weight: bold; text-transform: uppercase; }
+        
+        .urgente { color: #dc2626; font-weight: bold; }
+        .en-proceso { color: #0284c7; font-weight: bold; }
+        .badge-cantidad { font-size: 18px; font-weight: 900; text-align: center; background-color: #0f172a; color: white; }
+        
+        /* 🔥 ESTILO PARA LA REFERENCIA (IGUAL A LA PANTALLA) 🔥 */
+        .badge-referencia {
+            background-color: #e2e8f0;
+            color: #475569;
+            font-weight: bold;
+            font-size: 12px;
+            border-radius: 4px;
+            padding: 4px 8px;
+            display: inline-block;
+        }
+
+        /* 🖨️ MAGIA PARA IMPRESIÓN 🖨️ */
+        @media print {
+            @page { margin: 1cm; }
+            body { padding: 0; }
+            /* Forzamos a la impresora a imprimir los colores de fondo (gris y negro) */
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body onload="window.print()">
+
+    <div class="header">
+        <h1>Hoja de Ruta - Órdenes Activas</h1>
+        <p>Generado el: {{ hoy.strftime('%d/%m/%Y a las %H:%M') }} hs.</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 10%;">Prioridad</th>
+                <th style="width: 15%;">Estado</th>
+                <th style="width: 15%;">SKU</th>
+                <th style="width: 25%;">Descripción</th>
+                <th style="width: 25%;">Referencia / Motivo</th>
+                <th style="width: 10%; text-align: center;">Cant.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in ordenes %}
+            <tr>
+                <td class="{% if o.prioridad == 'Urgente' %}urgente{% endif %}">
+                    {{ o.prioridad }}
+                </td>
+                <td class="{% if o.estado == 'En Proceso' %}en-proceso{% endif %}">
+                    {{ o.estado }}
+                </td>
+                <td><strong style="font-size: 15px;">{{ o.sku }}</strong></td>
+                <td>{{ o.descripcion }}</td>
+                
+                <td>
+                    <div class="badge-referencia">
+                        Ref: {{ o.lote_referencia }}
+                    </div>
+                </td>
+                
+                <td class="badge-cantidad">{{ o.cantidad }}u</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 30px; color: #64748b;">
+                    No hay órdenes pendientes en este momento. ¡La fábrica está al día!
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

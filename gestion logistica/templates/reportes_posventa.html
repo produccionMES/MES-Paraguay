@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes Posventa - WMS</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #334155; }
+        
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-nav { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.2s; font-size: 14px; }
+        .btn-nav:hover { background: #2563eb; }
+
+        .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        
+        .kpi-card { background: white; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); position: relative; overflow: hidden; }
+        .kpi-card::before { content: ""; position: absolute; top: 0; left: 0; width: 6px; height: 100%; }
+        .kpi-ingresos::before { background: #3b82f6; }
+        .kpi-reparados::before { background: #10b981; }
+        .kpi-enviados::before { background: #8b5cf6; }
+        
+        .kpi-title { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; margin: 0 0 10px 0; }
+        .kpi-value { font-size: 36px; font-weight: 900; color: #0f172a; margin: 0; }
+        .kpi-sub { font-size: 13px; font-weight: bold; margin-top: 10px; display: flex; justify-content: space-between;}
+
+        .grid-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .chart-box { background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        th { background: #f1f5f9; padding: 15px; text-align: left; font-size: 12px; color: #475569; text-transform: uppercase; }
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; font-weight: 600; }
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">📊 Reportes de Posventa</h2>
+        <a href="{{ request.referrer or url_for('home') }}" class="btn-nav" style="background: #334155;">← Volver</a>
+    </div>
+
+    <div class="grid-kpis">
+        <div class="kpi-card kpi-ingresos">
+            <h3 class="kpi-title">Mercadería Ingresada</h3>
+            <p class="kpi-value">{{ ingresos_totales }} <span style="font-size: 16px; color: #94a3b8;">u.</span></p>
+            <div class="kpi-sub" style="color: #3b82f6;"><span>Total histórico recibido</span></div>
+        </div>
+
+        <div class="kpi-card kpi-reparados">
+            <h3 class="kpi-title">Total Reparado / Procesado</h3>
+            <p class="kpi-value">{{ total_reparado }} <span style="font-size: 16px; color: #94a3b8;">u.</span></p>
+            <div class="kpi-sub" style="color: #10b981;">
+                <span>✅ Apto: {{ rep_stats['apto'] }}</span>
+                <span style="color: #f59e0b;">🏷️ Outlet: {{ rep_stats['outlet'] }}</span>
+            </div>
+        </div>
+
+        <div class="kpi-card kpi-enviados">
+            <h3 class="kpi-title">Despachado a Logística</h3>
+            <p class="kpi-value">{{ total_enviado }} <span style="font-size: 16px; color: #94a3b8;">u.</span></p>
+            <div class="kpi-sub" style="color: #8b5cf6;">
+                <span>✅ Apto: {{ enviados_apto }}</span>
+                <span style="color: #f59e0b;">🏷️ Outlet: {{ enviados_outlet }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-charts">
+        <div class="chart-box">
+            <h3 style="margin-top: 0; color: #475569; font-size: 15px;">Destino de las Reparaciones</h3>
+            <div style="height: 250px;"><canvas id="chartResoluciones"></canvas></div>
+        </div>
+        <div class="chart-box">
+            <h3 style="margin-top: 0; color: #475569; font-size: 15px;">Embudo del Sector</h3>
+            <div style="height: 250px;"><canvas id="chartEmbudo"></canvas></div>
+        </div>
+    </div>
+
+    <h3 style="color: #0f172a;">🛠️ Últimos 10 equipos procesados</h3>
+    <table>
+        <thead>
+            <tr><th>Fecha</th><th>SKU</th><th>Técnico</th><th>Resolución</th><th>Cant.</th></tr>
+        </thead>
+        <tbody>
+            {% for r in ultimas_rep %}
+            <tr>
+                <td style="color: #64748b;">{{ r.fecha_fin.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ r.sku }}</td>
+                <td>{{ r.tecnico }}</td>
+                <td>
+                    {% if r.resolucion_calidad == 'apto' %}<span class="badge" style="background: #dcfce7; color: #166534;">Apto</span>
+                    {% elif r.resolucion_calidad == 'outlet' %}<span class="badge" style="background: #fef3c7; color: #92400e;">Outlet</span>
+                    {% elif r.resolucion_calidad == 'desguace' %}<span class="badge" style="background: #f1f5f9; color: #475569;">Desguace</span>
+                    {% else %}<span class="badge" style="background: #fee2e2; color: #b91c1c;">No Apto</span>{% endif %}
+                </td>
+                <td>{{ r.cantidad }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align: center; color: #94a3b8;">No hay reparaciones finalizadas aún.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        // Gráfico de Torta (Resoluciones)
+        new Chart(document.getElementById('chartResoluciones'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Apto', 'Outlet', 'No Apto', 'Desguace'],
+                datasets: [{
+                    data: [{{ rep_stats['apto'] }}, {{ rep_stats['outlet'] }}, {{ rep_stats['no_apto'] }}, {{ rep_stats['desguace'] }}],
+                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#64748b'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+        });
+
+        // Gráfico de Barras (Embudo)
+        new Chart(document.getElementById('chartEmbudo'), {
+            type: 'bar',
+            data: {
+                labels: ['1. Ingresó a Taller', '2. Se Reparó', '3. Se Despachó'],
+                datasets: [{
+                    label: 'Unidades',
+                    data: [{{ ingresos_totales }}, {{ total_reparado }}, {{ total_enviado }}],
+                    backgroundColor: ['#3b82f6', '#10b981', '#8b5cf6'],
+                    borderRadius: 6
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    </script>
+</body>
+</html>

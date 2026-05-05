@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nómina de Productos - Logística</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 0; }
+        /* Tonos azules para Logística */
+        .navbar { background: #0d6efd; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .container { padding: 20px; max-width: 1400px; margin: 0 auto; } /* Ensanchado un poco para las columnas nuevas */
+        
+        .header-acciones { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        
+        /* Buscador adaptable */
+        .search-form { flex-grow: 1; display: flex; gap: 10px; min-width: 300px; }
+        .search-input { flex-grow: 1; padding: 12px; border: 1px solid #ced4da; border-radius: 8px; font-size: 15px; outline: none; width: 100%; }
+        .search-input:focus { border-color: #0d6efd; box-shadow: 0 0 5px rgba(13, 110, 253, 0.2); }
+        
+        /* 🔥 CONTENEDOR DE TABLA PARA MÓVIL 🔥 */
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+
+        .tabla-nomina { width: 100%; border-collapse: collapse; min-width: 1000px; } /* Min width aumentado por columnas */
+        .tabla-nomina th { background: #0a58ca; color: white; padding: 15px; text-align: left; cursor: pointer; white-space: nowrap; }
+        .tabla-nomina th:hover { background: #084298; }
+        .tabla-nomina td { padding: 15px; border-bottom: 1px solid #e9ecef; font-size: 14px; }
+        
+        .btn-borrar { background: #dc3545; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-vaciar { background: #343a40; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-buscar-pro { background: #0d6efd; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-buscar-pro:hover { background: #0b5ed7; }
+
+        .btn-volver { color: white; text-decoration: none; font-weight: bold; border: 1px solid white; padding: 8px 15px; border-radius: 6px; transition: 0.3s; font-size: 14px; }
+        .btn-volver:hover { background: white; color: #0d6efd; }
+        
+        .badge-modelo { background: #e7f1ff; color: #0d6efd; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #cfe2ff; display: inline-block; }
+
+        /* 📱 AJUSTES PARA PANTALLAS CHICAS */
+        @media (max-width: 768px) {
+            .navbar { flex-direction: column; gap: 10px; text-align: center; padding: 15px; }
+            .header-acciones { flex-direction: column; align-items: stretch; }
+            .search-form { flex-direction: row; min-width: 100%; }
+            .btn-vaciar { width: 100%; margin-top: 5px; }
+            .container { padding: 10px; }
+            .tabla-nomina td, .tabla-nomina th { padding: 10px; font-size: 13px; }
+            .btn-volver { width: 100%; text-align: center; box-sizing: border-box; }
+            .pagination-link { padding: 8px 12px !important; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <h2 style="margin:0;">📖 Nómina de Productos (Logística)</h2>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <a href="{{ url_for('logistica') }}" class="btn-volver">⬅️ Volver a Logística</a>
+    </div>
+</div>
+
+<div class="container">
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div style="margin-bottom: 20px;">
+          {% for category, message in messages %}
+            <div style="padding: 15px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; text-align: center; 
+                        {% if category == 'error' %} background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7;
+                        {% else %} background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; {% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="header-acciones">
+        <form action="{{ url_for('nomina_logistica') }}" method="GET" class="search-form">
+            <input type="hidden" name="origen" value="{{ origen }}">
+            <input type="text" name="q" value="{{ q or '' }}" id="searchInput" onkeyup="filterTable()" placeholder="🔍 Buscar por SKU o descripción... (Enter para buscar en todo el catálogo)" class="search-input">
+            <button type="submit" class="btn-buscar-pro">🔍 Buscar</button>
+        </form>
+        
+        {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+        <form action="{{ url_for('vaciar_nomina_logistica') }}" method="POST" onsubmit="return confirm('⚠️ ¿Estás seguro de vaciar TODA la nómina de Logística?');">
+            <button type="submit" class="btn-vaciar">💣 Vaciar Nómina</button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if q %}
+        <p style="color: #6c757d; font-size: 14px; margin-bottom: 10px;">
+            Mostrando resultados para: <strong style="color: #0d6efd;">"{{ q }}"</strong> 
+            <a href="{{ url_for('nomina_logistica', origen=origen) }}" style="color: #dc3545; text-decoration: none; margin-left: 10px; font-weight: bold;">❌ Quitar Filtro</a>
+        </p>
+    {% endif %}
+
+    <div class="table-responsive">
+        <table class="tabla-nomina" id="tablaNomina">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">SKU ↕</th>
+                    <th onclick="sortTable(1)">Descripción ↕</th>
+                    <th onclick="sortTable(2)">Modelo ↕</th>
+                    <th onclick="sortTable(3)">Empresa ↕</th>
+                    <th onclick="sortTable(4)">Familia ↕</th>
+                    <th onclick="sortTable(5)">EAN ↕</th>
+                    <th style="text-align: center;" title="Alto (cm)">Al(cm)</th>
+                    <th style="text-align: center;" title="Ancho (cm)">An(cm)</th>
+                    <th style="text-align: center;" title="Profundidad (cm)">Pr(cm)</th>
+                    <th style="text-align: center;" title="Unidades x Bulto">UxB</th>
+                    <th style="text-align: center;" title="Bultos x Piso">BxPiso</th>
+                    <th style="text-align: center;" title="Pisos x Pallet">PxPallet</th>
+                    <th style="text-align: center;" title="Bultos x Pallet">BxPallet</th>
+                    
+                    {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+                    <th style="text-align: center; cursor: default;">Acciones</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody id="nominaBody">
+                {% for p in productos %}
+                <tr>
+                    <td><strong>{{ p.sku }}</strong></td>
+                    <td>{{ p.descripcion }}</td>
+                    <td><span class="badge-modelo">{{ p.modelo or '-' }}</span></td>
+                    
+                    <td style="color: #64748b;">
+                        {% if p.empresa %} <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">{{ p.empresa }}</span> {% else %} - {% endif %}
+                    </td>
+                    <td style="color: #64748b;">
+                        {% if p.familia %} <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">{{ p.familia }}</span> {% else %} - {% endif %}
+                    </td>
+                    <td style="color: #6c757d;">{{ p.ean or '-' }}</td>
+                    
+                    <td style="text-align: center; color: #64748b;">{{ p.alto_cm if p.alto_cm else 0 }}</td>
+                    <td style="text-align: center; color: #64748b;">{{ p.ancho_cm if p.ancho_cm else 0 }}</td>
+                    <td style="text-align: center; color: #64748b;">{{ p.profundidad_cm if p.profundidad_cm else 0 }}</td>
+                    
+                    <td style="text-align: center; font-weight: bold; color: #0f172a;">{{ p.unidades_x_bulto if p.unidades_x_bulto else 1 }}</td>
+                    <td style="text-align: center; color: #64748b;">{{ p.bultos_x_piso if p.bultos_x_piso else 1 }}</td>
+                    <td style="text-align: center; color: #64748b;">{{ p.pisos_x_pallet if p.pisos_x_pallet else 1 }}</td>
+                    <td style="text-align: center; font-weight: bold; color: #0f172a; background-color: #f8fafc;">{{ p.bultos_x_pallet if p.bultos_x_pallet else 1 }}</td>
+
+                    {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+                    <td style="text-align: center;">
+                        <form action="{{ url_for('eliminar_producto', producto_id=p.id) }}" method="POST" onsubmit="return confirm('¿Eliminar este producto permanentemente?');">
+                            <button type="submit" class="btn-borrar">Eliminar</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ 14 if current_user.rol in ['admin', 'jefe_logistica'] else 13 }}" style="text-align: center; padding: 40px; color: #999;">
+                        No se encontraron productos en la nómina.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; padding-bottom: 50px;">
+        
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('nomina_logistica', page=pagination.prev_num, q=q, origen=origen) }}" 
+               class="pagination-link" style="padding: 10px 15px; background: white; border: 1px solid #0d6efd; color: #0d6efd; text-decoration: none; border-radius: 5px; font-weight: bold;">« Anterior</a>
+        {% endif %}
+
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+                {% if page_num == pagination.page %}
+                    <span class="pagination-link" style="padding: 10px 15px; background: #0d6efd; color: white; border-radius: 5px; font-weight: bold;">{{ page_num }}</span>
+                {% else %}
+                    <a href="{{ url_for('nomina_logistica', page=page_num, q=q, origen=origen) }}" 
+                       class="pagination-link" style="padding: 10px 15px; background: white; border: 1px solid #ced4da; color: #333; text-decoration: none; border-radius: 5px;">{{ page_num }}</a>
+                {% endif %}
+            {% else %}
+                <span style="padding: 10px 15px;">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+            <a href="{{ url_for('nomina_logistica', page=pagination.next_num, q=q, origen=origen) }}" 
+               class="pagination-link" style="padding: 10px 15px; background: white; border: 1px solid #0d6efd; color: #0d6efd; text-decoration: none; border-radius: 5px; font-weight: bold;">Siguiente »</a>
+        {% endif %}
+    </div>
+    
+    <p style="text-align: center; color: #6c757d; font-size: 13px;">
+        Mostrando página {{ pagination.page }} de {{ pagination.pages }} (Total: {{ pagination.total }} productos)
+    </p>
+
+</div>
+
+<script>
+    let typingTimer;
+    const doneTypingInterval = 500; // ⏱️ Espera medio segundo (500ms) después de que dejás de teclear
+
+    function filterTable() {
+        const input = document.getElementById("searchInput");
+        const valor = input.value.trim();
+
+        // 1. ⚡ FILTRO VISUAL INMEDIATO (Oculta lo que no sirve en la página actual)
+        let rows = document.getElementById("nominaBody").getElementsByTagName("tr");
+        for (let i = 0; i < rows.length; i++) {
+            let rowText = rows[i].innerText.toUpperCase();
+            rows[i].style.display = rowText.includes(valor.toUpperCase()) ? "" : "none";
+        }
+
+        // 2. 🚀 BÚSQUEDA PROFUNDA EN EL SERVIDOR (Para buscar en las otras páginas ocultas)
+        clearTimeout(typingTimer);
+        
+        // Si el usuario escribió 3 letras o más, o si borró todo para volver al inicio...
+        if (valor.length >= 3 || valor.length === 0) {
+            // Arranca el cronómetro. Si no toca ninguna tecla por medio segundo, busca solo.
+            typingTimer = setTimeout(() => {
+                input.closest('form').submit(); // Hace el "Enter" automático
+            }, doneTypingInterval);
+        }
+    }
+
+    // 🎯 TRUCO DE UX: Mantener el cursor parpadeando al final del texto después de buscar
+    window.onload = function() {
+        const input = document.getElementById("searchInput");
+        if(input && input.value.length > 0) {
+            input.focus();
+            let val = input.value;
+            input.value = '';
+            input.value = val;
+        }
+    };
+
+    // ↕️ ORDENADOR DE COLUMNAS (El que ya tenías)
+    function sortTable(n) {
+        let table = document.getElementById("tablaNomina");
+        let rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+        switching = true; dir = "asc";
+        while (switching) {
+            switching = false; rows = table.rows;
+            for (i = 1; i < (rows.length - 1); i++) {
+                shouldSwitch = false;
+                x = rows[i].getElementsByTagName("TD")[n];
+                y = rows[i + 1].getElementsByTagName("TD")[n];
+                if (dir == "asc" && x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                    shouldSwitch = true; break;
+                } else if (dir == "desc" && x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                    shouldSwitch = true; break;
+                }
+            }
+            if (shouldSwitch) {
+                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                switching = true; switchcount++;
+            } else if (switchcount == 0 && dir == "asc") {
+                dir = "desc"; switching = true;
+            }
+        }
+    }
+</script>
+</body>
+</html>

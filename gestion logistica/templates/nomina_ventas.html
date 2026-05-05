@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo Maestro - Ventas</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #334155; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-nav { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.2s; border: none; cursor: pointer; }
+        .btn-nav:hover { background: #2563eb; }
+        
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
+        
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        .search-box input { flex-grow: 1; padding: 12px 15px; border: 2px solid #cbd5e1; border-radius: 8px; outline: none; font-size: 15px; font-weight: bold; color: #334155; }
+        .search-box input:focus { border-color: #3b82f6; }
+        .btn-search { background: #3b82f6; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-search:hover { background: #2563eb; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #f1f5f9; padding: 15px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; vertical-align: middle; }
+        tr:hover { background-color: #f8fafc; }
+        
+        .sku-badge { background: #e0f2fe; color: #0369a1; padding: 5px 10px; border-radius: 6px; font-weight: 900; font-family: monospace; font-size: 14px; border: 1px solid #bae6fd; }
+
+        /* Paginación */
+        .paginacion-container { display: flex; flex-direction: column; align-items: center; margin-top: 30px; gap: 10px; }
+        .pagination { display: flex; list-style: none; padding: 0; margin: 0; gap: 5px; }
+        .page-link { padding: 8px 16px; border: 1px solid #cbd5e1; color: #3b82f6; border-radius: 6px; text-decoration: none; background: white; font-weight: bold; transition: 0.2s;}
+        .page-item.active .page-link { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+        .page-item.disabled .page-link { color: #94a3b8; pointer-events: none; background-color: #f1f5f9; border-color: #e2e8f0; }
+        .page-link:hover { background-color: #e0f2fe; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">📖 Catálogo Oficial (Espejo de Logística)</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('ventas') }}" class="btn-nav">← Volver a Ventas</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 24px;">💡</span>
+            <p style="margin: 0; font-size: 13px; color: #92400e;">
+                <strong>Modo Solo Lectura:</strong> Este catálogo se sincroniza en tiempo real con la base de datos central de Logística. Si un SKU no existe o está mal escrito, solicite a Logística que lo actualice en su sistema.
+            </p>
+        </div>
+
+        <form action="{{ url_for('nomina_ventas') }}" method="GET" class="search-box">
+            <input type="text" name="q" placeholder="🔍 Buscar por SKU o Descripción..." value="{{ q or '' }}" autocomplete="off" autofocus>
+            <button type="submit" class="btn-search">Buscar</button>
+            <a href="{{ url_for('nomina_ventas') }}" style="background: #e2e8f0; color: #475569; padding: 12px 20px; border-radius: 8px; font-weight: bold; text-decoration: none; display: flex; align-items: center;">Limpiar</a>
+        </form>
+
+        <table style="background: white;">
+            <thead>
+                <tr>
+                    <th style="width: 20%;">SKU Oficial</th>
+                    <th style="width: 20%;">Código EAN</th>
+                    <th>Descripción Comercial</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for prod in productos %}
+                <tr>
+                    <td><span class="sku-badge">{{ prod.sku }}</span></td>
+                    <td style="color: #64748b; font-family: monospace; font-size: 13px;">{{ prod.ean if prod.ean else '-' }}</td>
+                    <td style="font-weight: bold; color: #334155;">{{ prod.descripcion }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" style="text-align: center; padding: 40px; color: #94a3b8; font-weight: bold;">
+                        📭 No se encontraron productos en el catálogo de Logística que coincidan con la búsqueda.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if pagination and pagination.pages > 1 %}
+        <div class="paginacion-container">
+            <div class="pagination">
+                <a class="page-link {% if not pagination.has_prev %}disabled{% endif %}" 
+                   href="{{ url_for('nomina_ventas', q=q, page=pagination.prev_num) if pagination.has_prev else '#' }}">
+                    &laquo; Anterior
+                </a>
+
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <a class="page-link {% if page_num == pagination.page %}active{% endif %}" 
+                           href="{{ url_for('nomina_ventas', q=q, page=page_num) }}">
+                           {{ page_num }}
+                        </a>
+                    {% else %}
+                        <span class="page-link disabled">...</span>
+                    {% endif %}
+                {% endfor %}
+
+                <a class="page-link {% if not pagination.has_next %}disabled{% endif %}" 
+                   href="{{ url_for('nomina_ventas', q=q, page=pagination.next_num) if pagination.has_next else '#' }}">
+                    Siguiente &raquo;
+                </a>
+            </div>
+            <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">
+                Página {{ pagination.page }} de {{ pagination.pages }} | Total catálogo: {{ pagination.total }} ítems
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

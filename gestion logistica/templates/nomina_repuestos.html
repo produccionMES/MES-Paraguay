@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WMS - Catálogo de Repuestos</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f6fb; margin: 20px; color: #333; }
+        * { box-sizing: border-box; } 
+        
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: white; padding: 15px 20px; border-bottom: 3px solid #6c757d; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 8px; flex-wrap: wrap; gap: 10px;}
+        .header-title { margin: 0; color: #343a40; display: flex; align-items: center; gap: 10px; font-size: 20px; }
+        .btn-volver { text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; font-size: 14px; background-color: #6f42c1; color: white; display: inline-flex; align-items: center; gap: 5px; border: none; cursor: pointer;}
+        
+        .btn-success { background-color: #198754; }
+        .btn-success:hover { background-color: #157347; }
+
+        /* 🔥 ESTILOS PARA LAS CARPETAS (FILTROS) 🔥 */
+        .carpetas-container { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 20px; }
+        .btn-carpeta { background: white; border: 2px solid #dee2e6; color: #6c757d; padding: 10px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.2s; white-space: nowrap; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        .btn-carpeta:hover { border-color: #6f42c1; color: #6f42c1; }
+        .btn-carpeta.activa { background: #6f42c1; color: white; border-color: #6f42c1; box-shadow: 0 4px 8px rgba(111, 66, 193, 0.3); }
+
+        .buscador-container { background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .input-buscar { width: 100%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 16px; outline: none; }
+        .input-buscar:focus { border-color: #6c757d; }
+
+        /* GRILLA DE REPUESTOS */
+        .galeria-repuestos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; align-items: stretch; }
+        .repuesto-card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #dee2e6; display: flex; flex-direction: column; align-items: center; text-align: center; transition: transform 0.2s; height: 100%; }
+        .repuesto-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); border-color: #6c757d; }
+
+        .img-container { width: 100%; height: 160px; margin-bottom: 15px; border-radius: 8px; overflow: hidden; background: #f8f9fa; border: 2px dashed #ced4da; display: flex; align-items: center; justify-content: center; position: relative; }
+        .img-container img { width: 100%; height: 100%; object-fit: cover; }
+        .sin-foto-icon { font-size: 40px; color: #adb5bd; }
+        
+        .badge-carpeta { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.7); color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+
+        .sku-badge { background: #343a40; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
+        .repuesto-desc { font-size: 15px; font-weight: bold; color: #4b2c82; margin: 0 0 10px 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
+        .stock-info { font-size: 12px; color: #198754; font-weight: bold; margin-bottom: 15px; background: #d1e7dd; padding: 5px 15px; border-radius: 20px; }
+
+        .form-camara { width: 100%; margin-top: auto; }
+        .btn-camara { background-color: #6c757d; color: white; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; display: block; width: 100%; transition: 0.3s; border: none; font-size: 13px; text-align: center; margin: 0; }
+        .btn-camara:hover { background-color: #495057; }
+
+        /* Estilos para Alertas */
+        .flash-msg { padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 20px; font-size: 14px; }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 class="header-title">🔧 Catálogo Visual de Repuestos</h2>
+        <div style="display: flex; gap: 10px;">
+            <button type="button" class="btn-volver btn-success" onclick="document.getElementById('modalNuevoRepuesto').style.display='flex'">
+                ➕ Alta Manual
+            </button>
+            <a href="{{ url_for('posventa') }}" class="btn-volver">🔙 Volver</a>
+        </div>
+    </div>
+
+    <div style="width: 100%;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash-msg msg-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="carpetas-container">
+        <button class="btn-carpeta activa" id="btn-cat-TODOS" onclick="filtrarRepuestos('TODOS')">
+            📁 Todos los Repuestos
+        </button>
+        {% for carpeta in carpetas %}
+            <button class="btn-carpeta" id="btn-cat-{{ carpeta }}" onclick="filtrarRepuestos('{{ carpeta }}')">
+                📁 {{ carpeta }}
+            </button>
+        {% endfor %}
+    </div>
+
+    <div class="buscador-container">
+        <input type="text" id="buscadorRepuestos" class="input-buscar" placeholder="🔍 Buscar por descripción o SKU dentro de la carpeta..." onkeyup="filtrarRepuestos()">
+    </div>
+
+    <div class="galeria-repuestos" id="galeriaRepuestos">
+        {% for repuesto in repuestos %}
+            <div class="repuesto-card" data-categoria="{{ repuesto.modelo }}">
+                
+                <div class="img-container">
+                    
+                    {% if current_user.rol in ['admin', 'jefe_posventa'] %}
+                    <form action="{{ url_for('borrar_repuesto', id_producto=repuesto.id) }}" method="POST" onsubmit="return confirm('⚠️ PELIGRO: ¿Estás seguro que querés borrar el repuesto {{ repuesto.sku }} por completo del sistema?');" style="position: absolute; top: 8px; left: 8px; margin: 0; z-index: 10;">
+                        <button type="submit" style="background: #dc3545; color: white; border: 2px solid white; border-radius: 6px; cursor: pointer; padding: 4px 8px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);" title="Borrar Repuesto del Sistema">
+                            ❌ Borrar
+                        </button>
+                    </form>
+                    {% endif %}
+                    
+                    {% if repuesto.imagen and repuesto.imagen != 'sin_foto.png' %}
+                        <img src="{{ url_for('static', filename='img/repuestos/' + repuesto.imagen) }}" alt="{{ repuesto.descripcion }}">
+                        
+                        <form action="{{ url_for('borrar_foto_repuesto', id_producto=repuesto.id) }}" method="POST" onsubmit="return confirm('¿Seguro que querés borrar esta foto?');" style="position: absolute; top: 8px; right: 8px; margin: 0; z-index: 10;">
+                            <button type="submit" style="background: rgba(220, 53, 69, 0.85); border: none; border-radius: 4px; cursor: pointer; padding: 6px 8px; color: white; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);" title="Borrar Foto">
+                                🗑️
+                            </button>
+                        </form>
+                        
+                    {% else %}
+                        <div class="sin-foto-icon">📷</div>
+                    {% endif %}
+                </div>
+
+                <div class="sku-badge">{{ repuesto.sku }}</div>
+                <h4 class="repuesto-desc">{{ repuesto.descripcion }}</h4>
+                <div class="stock-info">📦 Stock: {{ repuesto.stock | default(0) }} unid.</div>
+
+                <form action="{{ url_for('subir_foto_repuesto', id_producto=repuesto.id) }}" method="POST" enctype="multipart/form-data" class="form-camara">
+                    <label class="btn-camara">
+                        📸 Cambiar/Sacar Foto
+                        <input type="file" name="foto_nueva" accept="image/*" capture="environment" style="display: none;" onchange="this.form.submit()">
+                    </label>
+                </form>
+
+            </div>
+        {% else %}
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">
+                <h3>Aún no hay repuestos cargados en la base de datos.</h3>
+                <p>Armá tu Excel con SKU, Descripción y Producto Padre, y subilo en la pantalla principal.</p>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div id="modalNuevoRepuesto" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(3px);">
+        <div style="background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); position: relative;">
+            
+            <button type="button" onclick="document.getElementById('modalNuevoRepuesto').style.display='none'" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; float: right; font-weight: bold;">
+                X Cerrar
+            </button>
+            
+            <h2 style="margin-top: 0; color: #6f42c1;">🛠️ Nuevo Repuesto</h2>
+            <p style="color: #6c757d; font-size: 13px; margin-bottom: 20px;">Dá de alta un repuesto individual sin usar Excel.</p>
+            
+            <form action="{{ url_for('agregar_repuesto_manual') }}" method="POST">
+                <div style="margin-bottom: 15px; text-align: left;">
+                    <label style="font-weight: bold; color: #495057; font-size: 14px; display: block; margin-bottom: 5px;">SKU del Repuesto:</label>
+                    <input type="text" name="sku" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ced4da; font-weight: bold; text-transform: uppercase;" placeholder="Ej: REP-MOT-20">
+                </div>
+                
+                <div style="margin-bottom: 15px; text-align: left;">
+                    <label style="font-weight: bold; color: #495057; font-size: 14px; display: block; margin-bottom: 5px;">Descripción:</label>
+                    <input type="text" name="descripcion" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ced4da;" placeholder="Ej: Motor Tubular 20Nm">
+                </div>
+
+                <div style="margin-bottom: 25px; text-align: left;">
+                    <label style="font-weight: bold; color: #495057; font-size: 14px; display: block; margin-bottom: 5px;">Producto Padre (Carpeta):</label>
+                    
+                    <select id="selectCarpeta" name="modelo" onchange="manejarCarpeta(this)" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ced4da; font-weight: bold; color: #333; outline: none; margin-bottom: 5px; cursor: pointer;">
+                        <option value="" disabled selected>-- Seleccioná una carpeta --</option>
+                        {% for carpeta in carpetas %}
+                            {% if carpeta != '' %}
+                                <option value="{{ carpeta }}">📁 {{ carpeta }}</option>
+                            {% endif %}
+                        {% endfor %}
+                        <option value="__NUEVO__" style="font-weight: bold; color: #0d6efd;">➕ Escribir una nueva...</option>
+                    </select>
+
+                    <input type="text" id="inputNuevaCarpeta" style="display: none; width: 100%; padding: 10px; border-radius: 6px; border: 2px solid #0d6efd; font-weight: bold; text-transform: uppercase; margin-top: 5px;" placeholder="Ej: CORTINAS ROLLER">
+                </div>
+
+                <button type="submit" style="width: 100%; padding: 14px; background: #198754; color: white; font-weight: bold; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s;">
+                    ✅ Guardar Repuesto
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let categoriaActiva = 'TODOS';
+
+        function filtrarRepuestos(nuevaCat = null) {
+            // Si nos pasaron una categoría por botón, actualizamos la vista
+            if (nuevaCat !== null) {
+                categoriaActiva = nuevaCat;
+                // Sacamos la clase "activa" a todos los botones
+                document.querySelectorAll('.btn-carpeta').forEach(btn => btn.classList.remove('activa'));
+                // Se la ponemos solo al botón que tocamos
+                document.getElementById('btn-cat-' + nuevaCat).classList.add('activa');
+            }
+
+            let input = document.getElementById('buscadorRepuestos').value.toLowerCase();
+            let cards = document.getElementsByClassName('repuesto-card');
+
+            // Filtro Doble: Por texto y por Carpeta
+            for (let i = 0; i < cards.length; i++) {
+                let textoCard = cards[i].querySelector('.repuesto-desc').innerText.toLowerCase() + " " + cards[i].querySelector('.sku-badge').innerText.toLowerCase();
+                let catCard = cards[i].getAttribute('data-categoria');
+
+                let coincideTexto = textoCard.includes(input);
+                let coincideCarpeta = (categoriaActiva === 'TODOS' || categoriaActiva === catCard);
+
+                if (coincideTexto && coincideCarpeta) {
+                    cards[i].style.display = "flex";
+                } else {
+                    cards[i].style.display = "none";
+                }
+            }
+        }
+
+        // 🔥 FUNCION PARA MANEJAR EL SELECT DE CARPETAS 🔥
+        function manejarCarpeta(selectElement) {
+            const inputNuevo = document.getElementById('inputNuevaCarpeta');
+            
+            if (selectElement.value === '__NUEVO__') {
+                // Mostramos el campo de texto y le pasamos la posta para que mande el dato
+                inputNuevo.style.display = 'block';
+                inputNuevo.name = 'modelo'; // El input ahora es el que viaja a Python
+                selectElement.name = '';    // Desactivamos el select para el envío
+                inputNuevo.required = true;
+                inputNuevo.focus();
+            } else {
+                // Ocultamos el campo y le devolvemos la posta al select
+                inputNuevo.style.display = 'none';
+                inputNuevo.name = '';       // Desactivamos el input
+                selectElement.name = 'modelo'; // El select vuelve a mandar el dato
+                inputNuevo.required = false;
+                inputNuevo.value = '';      // Lo limpiamos por las dudas
+            }
+        }
+    </script>
+</body>
+</html>

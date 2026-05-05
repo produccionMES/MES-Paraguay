@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nómina Materias Primas - WMS</title>
+    <style>
+        :root {
+            --mp-accent: #059669; /* Verde MP */
+            --bg-gris: #f8fafc;
+            --text-main: #1e293b;
+            --header-bg: #343a40; /* Gris oscuro idéntico a Logística */
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-gris);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-main);
+        }
+
+        /* NAVBAR IDÉNTICA */
+        .navbar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: white; 
+            padding: 15px 25px; 
+            border-bottom: 3px solid var(--mp-accent); 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
+            margin-bottom: 30px; 
+        }
+        .btn-volver { 
+            text-decoration: none; 
+            background: #64748b; 
+            color: white; 
+            padding: 10px 20px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 14px; 
+            transition: 0.3s; 
+        }
+
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+        }
+
+        /* ENCABEZADO DE BÚSQUEDA Y VACIAR */
+        .header-nomina-layout {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            gap: 20px;
+        }
+
+        .search-container { flex-grow: 1; }
+        .search-input { 
+            width: 100%; 
+            padding: 14px 20px; 
+            font-size: 15px; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 10px; 
+            outline: none; 
+            transition: 0.2s;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+        .search-input:focus { 
+            border-color: var(--mp-accent); 
+            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1); 
+        }
+
+        .btn-vaciar { 
+            background-color: #0f172a; 
+            color: white; 
+            border: none; 
+            padding: 14px 25px; 
+            border-radius: 10px; 
+            font-weight: 900; 
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* TABLA COMPACTA PROFESIONAL */
+        .table-nomina-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        table { width: 100%; border-collapse: collapse; border: none; }
+
+        /* 🔥 FIX DEL ENCABEZADO Y HOVER 🔥 */
+        thead { background-color: var(--header-bg); }
+
+        th { 
+            padding: 12px 15px; 
+            text-align: left; 
+            font-size: 13px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            font-weight: 900; 
+            cursor: pointer;
+            transition: background-color 0.2s;
+            background-color: var(--header-bg); /* Forzamos el gris oscuro SIEMPRE */
+            color: white; /* Forzamos la letra blanca SIEMPRE */
+        }
+
+        /* Al pasar el mouse, el fondo se aclara sutilmente pero las letras siguen blancas */
+        th:hover {
+            background-color: #495057 !important; 
+            color: white !important;
+        }
+
+        td { 
+            padding: 12px 15px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 14px; 
+            color: #1e293b;
+            vertical-align: middle;
+            font-weight: 700; 
+        }
+        tr:hover { background-color: #f8fafc; }
+
+        .sku-cell { font-weight: 900; color: #000; }
+        .ean-cell { color: #64748b; }
+        
+        .eliminar-btn { 
+            background-color: #dc3545; 
+            color: white; 
+            border: none;
+            padding: 8px 18px; 
+            border-radius: 6px; 
+            font-size: 13px; 
+            font-weight: bold; 
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* ESTILOS DE NOTIFICACIONES */
+        .flash-container { margin-bottom: 20px; }
+        .flash-msg { 
+            padding: 15px; 
+            border-radius: 10px; 
+            text-align: center; 
+            font-size: 14px; 
+            font-weight: 900; 
+            margin-bottom: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        }
+        .msg-error { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        .msg-success { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+
+        @media (max-width: 1024px) {
+            th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 style="margin:0; color: #0f172a; font-weight: 900;">🏗️ Nómina Materias Primas</h2>
+        <a href="{{ url_for('materias_primas') }}" class="btn-volver">← Volver al Panel</a>
+    </div>
+
+    <div class="container">
+
+
+        <div class="flash-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">{{ message }}</div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+        </div>
+
+        <div class="header-nomina-layout">
+            <div class="search-container">
+                <input type="text" id="inputSearchMP" onkeyup="filtrarTabla()" placeholder="Buscar por SKU, descripción o modelo..." class="search-input">
+            </div>
+
+            {% if current_user.rol == 'admin' %}
+            <div class="vaciar-container">
+                {% if current_user.rol.strip().lower() == 'admin' %}
+                    <form action="{{ url_for('vaciar_nomina_materias_primas') }}" method="POST" 
+                            onsubmit="return confirm('⚠️ ¿ESTÁS SEGURO? Se borrarán todos los insumos de la lista. Esta acción no se puede deshacer.');">
+                        <button type="submit" class="btn-vaciar">
+                            🗑️ Vaciar Nómina Completa
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="table-nomina-card">
+            <table id="tablaInsumos">
+                <thead>
+                    <tr>
+                        <th>SKU ↑</th>
+                        <th>Descripción ↑</th>
+                        <th style="text-align: center;">Modelo ↑</th>
+                        <th>EAN ↑</th>
+                        
+                        {% if current_user.rol.strip().lower() == 'admin' %}
+                            <th style="text-align: center;">Acciones</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in productos %}
+                    <tr>
+                        <td class="sku-cell">{{ p.sku }}</td>
+                        <td>{{ p.descripcion }}</td>
+                        <td style="text-align: center; color: #64748b;">{{ p.modelo if p.modelo else '-' }}</td>
+                        <td class="ean-cell">{{ p.ean if p.ean else '-' }}</td>
+                        
+                        {% if current_user.rol.strip().lower() == 'admin' %}
+                        <td style="text-align: center; width: 120px;">
+                            <form action="{{ url_for('eliminar_producto', producto_id=p.id) }}" method="POST" onsubmit="return confirm('¿Eliminar?');">
+                                <button type="submit" class="eliminar-btn">Eliminar</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                        
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function filtrarTabla() {
+            let input = document.getElementById("inputSearchMP");
+            let filter = input.value.toUpperCase();
+            let table = document.getElementById("tablaInsumos");
+            let tr = table.getElementsByTagName("tr");
+
+            for (let i = 1; i < tr.length; i++) {
+                let txtSKU = tr[i].cells[0].textContent.toUpperCase();
+                let txtDesc = tr[i].cells[1].textContent.toUpperCase();
+                let txtMod = tr[i].cells[2].textContent.toUpperCase();
+                
+                if (txtSKU.includes(filter) || txtDesc.includes(filter) || txtMod.includes(filter)) {
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    </script>
+</body>
+</html>

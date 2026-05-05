@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <title>Tareas de Autoelevador</title>
+    
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 15px; color: #333; -webkit-tap-highlight-color: transparent; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #fd7e14; padding-bottom: 10px; margin-bottom: 20px; }
+        .btn-volver { text-decoration: none; background: #6c757d; color: white; padding: 10px 15px; border-radius: 8px; font-weight: bold; }
+        
+        .flash-msg { padding: 15px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+        .msg-error { background-color: #f8d7da; color: #842029; border-color: #f5c2c7; }
+
+        .grid-tareas { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 15px; }
+        
+        .card-tarea { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 20px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            border-top: 6px solid #fd7e14;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .sku-titulo { font-size: 22px; font-weight: 900; color: #1e293b; margin: 0; }
+        .cantidad-badge { background: #fd7e14; color: white; padding: 5px 12px; border-radius: 20px; font-size: 20px; font-weight: bold; }
+        
+        .info-ruta { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 12px; font-size: 15px; }
+        .ruta-origen { color: #dc3545; font-weight: bold; }
+        .ruta-destino { color: #198754; font-weight: bold; margin-top: 8px; display: block; }
+
+        .form-fila {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap; 
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            justify-content: center;
+        }
+
+        .input-scan-nuevo {
+            width: 110px;
+            padding: 10px 12px;
+            border: 2px solid #6c757d;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+            outline: none;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+        .input-scan-nuevo.success {
+            border-color: #198754 !important;
+            background-color: #f0fdf4 !important;
+            color: #198754;
+        }
+        .input-scan-nuevo:disabled {
+            background-color: #f8f9fa !important;
+            border-color: #ced4da !important;
+            color: #adb5bd !important;
+            cursor: not-allowed;
+        }
+
+        .input-qty-nuevo {
+            width: 50px;
+            padding: 10px 8px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            text-align: center;
+            color: #495057;
+            outline: none;
+            background: white;
+        }
+        .input-qty-nuevo:disabled {
+            background-color: #f8f9fa !important;
+            border-color: #f1f3f5 !important;
+            color: #ced4da !important;
+            cursor: not-allowed;
+        }
+
+        .btn-extraer-nuevo {
+            background-color: #198754;
+            color: white;
+            border: none;
+            padding: 11px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: 0.2s;
+            flex-grow: 1;
+            justify-content: center;
+        }
+        .btn-extraer-nuevo:disabled {
+            background-color: #ced4da !important;
+            color: #f8f9fa !important;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-cam {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-cam:disabled {
+            background: #ced4da;
+            cursor: not-allowed;
+        }
+
+        .vacio-box { text-align: center; padding: 50px 20px; background: white; border-radius: 12px; border: 2px dashed #cbd5e1; color: #64748b; }
+    </style>
+</head>
+<body>
+
+    <div id="scanner-container" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
+        <div id="status-log" style="color: #00ff00; font-family: monospace; font-size: 12px; margin-bottom: 10px; text-align: center; background: rgba(0,0,0,0.5); padding: 10px; width: 300px;">
+            Esperando inicio...
+        </div>
+        <div id="reader" style="width: 300px; background: white; border-radius: 8px; overflow: hidden;"></div>
+        <button onclick="stopScanner()" style="margin-top:20px; padding:12px 25px; background:#dc3545; color:white; border:none; border-radius:8px; font-weight:bold;">❌ Cerrar Cámara</button>
+    </div>
+
+    <div class="header">
+        <h2 style="margin: 0; color: #fd7e14;">🚜 Reposición a Piso</h2>
+        <a href="{{ url_for('logistica') }}" class="btn-volver">← Mapa</a>
+    </div>
+
+    <div style="background: #e0f2fe; border: 2px solid #7dd3fc; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h3 style="margin: 0; color: #0369a1; display: flex; align-items: center; gap: 10px;">
+                📡 Radar de Reabastecimiento
+            </h3>
+            <p style="margin: 5px 0 0 0; color: #0284c7; font-size: 14px;">
+                El sistema buscará stock en altura para productos agotados en piso.
+            </p>
+        </div>
+        
+        <form action="{{ url_for('radar_reposicion') }}" method="POST" style="margin: 0;" onsubmit="
+            document.getElementById('btn-radar').innerText = '⏳ Escaneando...'; 
+            document.getElementById('btn-radar').disabled = true;
+            return true;
+        ">
+            <button type="submit" id="btn-radar" style="background: #0284c7; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px;">
+                🔍 Ejecutar Radar
+            </button>
+        </form>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash-msg {% if category == 'error' %}msg-error{% endif %}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if tareas %}
+        <div class="grid-tareas">
+            {% for t in tareas %}
+            <div class="card-tarea">
+                <div class="card-header">
+                    <div>
+                        <h3 class="sku-titulo">{{ t.sku }}</h3>
+                        <small style="color: #6c757d; font-weight: bold;">{{ t.descripcion }}</small>
+                    </div>
+                    <div class="cantidad-badge">⬇️ {{ t.cantidad_solicitada }}u.</div>
+                </div>
+
+                <div class="info-ruta">
+                    <span class="ruta-origen">⬆️ RESERVA:</span> <span style="color: #495057;">{{ t.origen_sugerido }}</span>
+                    <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 8px 0;">
+                    <span class="ruta-destino">⬇️ PISO:</span> <span style="color: #495057;">{{ t.destino_requerido }}</span>
+                </div>
+
+                <form action="{{ url_for('procesar_reposicion', tarea_id=t.id) }}" method="POST" style="margin: 0;" class="form-fila">
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <input type="text" id="origen_{{ t.id }}" name="codigo_origen" class="input-scan-nuevo" 
+                               placeholder="1. Origen..." 
+                               onkeypress="checkOrigen(event, this, '{{ t.id }}', '{{ t.sku }}')" 
+                               autocomplete="off" required>
+                        <button type="button" class="btn-cam" onclick="startScanner('origen_{{ t.id }}', 'origen', '{{ t.id }}', '{{ t.sku }}')">📷</button>
+                    </div>
+
+                    <input type="number" id="cant_{{ t.id }}" name="cantidad" class="input-qty-nuevo" 
+                           value="{{ t.cantidad_solicitada }}" min="1" disabled required>
+
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <input type="text" id="destino_{{ t.id }}" name="codigo_destino" class="input-scan-nuevo" 
+                               placeholder="2. Destino..." 
+                               onkeypress="checkDestino(event, this, '{{ t.id }}')" 
+                               disabled required>
+                        <button type="button" id="btn_cam_dest_{{ t.id }}" class="btn-cam" disabled onclick="startScanner('destino_{{ t.id }}', 'destino', '{{ t.id }}')">📷</button>
+                    </div>
+
+                    <button type="submit" id="btn_{{ t.id }}" class="btn-extraer-nuevo" disabled>✅ Bajar</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="vacio-box">
+            <span style="font-size: 50px;">☕</span>
+            <h3>No hay reposiciones pendientes</h3>
+        </div>
+    {% endif %}
+
+    <script>
+        let lastKeyTime = Date.now();
+        let html5QrScanner = null;
+
+        function updateLog(msg) {
+            const log = document.getElementById('status-log');
+            if(log) log.innerText = "ESTADO: " + msg;
+        }
+
+        function startScanner(inputId, type, tareaId, skuEsperado = null) {
+            document.getElementById('scanner-container').style.display = 'flex';
+            updateLog("Iniciando cámara...");
+
+            // USAMOS EL NOMBRE CORRECTO: Html5Qrcode
+            if (typeof Html5Qrcode === 'undefined') {
+                alert("Error: La librería de la cámara no cargó correctamente.");
+                return;
+            }
+
+            if(html5QrScanner) {
+                html5QrScanner.clear();
+            }
+
+            html5QrScanner = new Html5Qrcode("reader");
+            
+            html5QrScanner.start(
+                { facingMode: "environment" }, 
+                { fps: 10, qrbox: { width: 250, height: 150 } },
+                (decodedText) => {
+                    const input = document.getElementById(inputId);
+                    input.value = decodedText.toUpperCase();
+                    stopScanner();
+
+                    // Simular ENTER para validar
+                    const event = new KeyboardEvent('keypress', { key: 'Enter' });
+                    if (type === 'origen') checkOrigen(event, input, tareaId, skuEsperado);
+                    else checkDestino(event, input, tareaId);
+                }
+            ).catch(err => {
+                updateLog("Error: " + err);
+            });
+        }
+
+        function stopScanner() {
+            if (html5QrScanner) {
+                html5QrScanner.stop().then(() => {
+                    document.getElementById('scanner-container').style.display = 'none';
+                }).catch(() => {
+                    document.getElementById('scanner-container').style.display = 'none';
+                });
+            } else {
+                document.getElementById('scanner-container').style.display = 'none';
+            }
+        }
+
+        function checkOrigen(event, inputElement, tareaId, skuEsperado) {
+            const timeDiff = Date.now() - lastKeyTime;
+            lastKeyTime = Date.now();
+
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const cod = inputElement.value.trim().toUpperCase();
+                if(!cod) return;
+
+                fetch('/api/escanear_ubicacion/' + encodeURIComponent(cod))
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'ok') {
+                        const tieneSku = data.items.some(item => item.sku === skuEsperado);
+                        if(tieneSku) {
+                            inputElement.classList.add('success');
+                            inputElement.readOnly = true;
+                            document.getElementById('cant_' + tareaId).disabled = false;
+                            document.getElementById('destino_' + tareaId).disabled = false;
+                            document.getElementById('btn_cam_dest_' + tareaId).disabled = false;
+                        } else {
+                            alert("SKU no encontrado en esta ubicación.");
+                            inputElement.value = '';
+                        }
+                    } else {
+                        alert(data.msg);
+                        inputElement.value = '';
+                    }
+                });
+            }
+        }
+
+        function checkDestino(event, inputElement, tareaId) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const cod = inputElement.value.trim().toUpperCase();
+                if(!cod) return;
+
+                fetch('/api/escanear_ubicacion/' + encodeURIComponent(cod))
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'ok') {
+                        inputElement.classList.add('success');
+                        inputElement.readOnly = true;
+                        document.getElementById('btn_' + tareaId).disabled = false;
+                    } else {
+                        alert(data.msg);
+                        inputElement.value = '';
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

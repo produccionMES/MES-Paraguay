@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <title>WMS - Centro de Control Logística</title>
+    <style>
+        /* 🔥 ANTI-SCROLL FANTASMA 🔥 */
+        html, body { max-width: 100vw; overflow-x: hidden; margin: 0; padding: 0; }
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        
+        /* NAVBAR RESPONSIVA PARA WEB Y CELULAR */
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: white; padding: 15px 20px; border-bottom: 2px solid #e9ecef; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-radius: 8px; flex-wrap: wrap; gap: 10px; }
+        .btn-nav { text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; font-size: 14px; color: white; transition: 0.3s; display: inline-flex; align-items: center; gap: 5px; position: relative; border: none; cursor: pointer; font-family: inherit;}
+        
+        .flash-container { 
+            position: fixed; 
+            top: 20px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            z-index: 999999; 
+            width: 90%; 
+            max-width: 400px; 
+            pointer-events: none; /* Deja que el dedo pase a través si no lo tocás */
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .flash-msg { 
+            padding: 15px; 
+            border-radius: 8px; 
+            text-align: center; 
+            font-size: 15px;
+            font-weight: 900; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); 
+            /* Solo la animación de entrada */
+            animation: dropDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; 
+        }
+
+        .msg-error { background-color: #dc3545; color: white; border: 2px solid #b02a37; }
+        .msg-success { background-color: #198754; color: white; border: 2px solid #146c43; }
+        /* Si tenés mensajes de 'info', agregá este para el radar: */
+        .msg-info { background-color: #0dcaf0; color: #000; border: 2px solid #087990; }
+        
+        /* 🔥 NUEVA ANIMACIÓN: Entra (10%), se queda quieto, y se va (100%) 🔥 */
+        @keyframes dropDownAndFade {
+            0% { opacity: 0; transform: translateY(-50px); }
+            10% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-50px); pointer-events: none; display: none; }
+        }
+        
+        .header-panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;}
+        input, select { padding: 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px; }
+        .btn-blue { background-color: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; padding: 8px 15px; }
+        
+        .carga-masiva-box { background: white; padding: 25px; border-radius: 10px; margin-bottom: 30px; border: 1px solid #dee2e6; display: flex; gap: 20px; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .btn-plantilla { font-size: 12px; color: #0d6efd; text-decoration: none; font-weight: bold; border: 1px solid #0d6efd; padding: 5px 10px; border-radius: 4px; transition: 0.3s; display: inline-block; margin-bottom: 15px; }
+        .btn-plantilla:hover { background-color: #e7f1ff; }
+        
+        /* 🔥 LA CURA DEFINITIVA PARA EL OVERFLOW EN GRID 🔥 */
+        .almacen-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-bottom: 40px; min-width: 0; }
+        .rack-card { background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid #0d6efd; transition: transform 0.2s; min-width: 0; width: 100%; overflow: hidden; }
+        
+        .rack-header { font-size: 16px; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; color: #495057; display: flex; justify-content: space-between; align-items: flex-start;}
+        
+        /* 🔥 FIX PARA SCROLL TÁCTIL EN RACKS 🔥 */
+        .matriz { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 4px; 
+            overflow-x: auto; 
+            padding-bottom: 8px; 
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-x pan-y; /* Permite el paneo nativo del dedo */
+            width: 100%;
+        }
+        .fila-nivel { display: flex; gap: 4px; height: 35px; min-width: max-content; }
+        .etiqueta-nivel { width: 40px; background-color: #6c757d; color: white; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; border-radius: 3px; position: sticky; left: 0; z-index: 1;}
+        
+        .celda-posicion { flex: 1; min-width: 35px; background-color: #f8f9fa; border: 1px solid #ced4da; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #adb5bd; cursor: pointer; transition: 0.2s; text-decoration: none; position: relative; }
+        .celda-posicion:hover { background-color: #e2e6ea; border-color: #adb5bd; color: #0d6efd; }
+
+        .pos-ocupada { background-color: #0d6efd !important; color: white !important; border-color: #0a58ca; font-weight: bold; }
+        .pos-bloqueada { background-color: #cbd5e1 !important; color: #64748b !important; border: 1px dashed #94a3b8 !important; cursor: not-allowed; }
+        .pos-bloqueada::after { content: "🚫"; font-size: 10px; position: absolute; top: 1px; right: 1px; opacity: 0.7; }
+        
+        .indicador-subdivision { position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; background-color: #fd7e14; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); z-index: 2; }
+        
+        .pos-unificada { flex: 2 !important; min-width: 74px !important; border: 2px dashed #0d6efd !important; background-color: #f8f9fa; }
+        .pos-unificada.pos-ocupada { border: 2px solid #0a58ca !important; background-color: #0d6efd !important; color: white !important; }
+
+        .custom-menu { display: none; position: absolute; background: white; border: 1px solid #ccc; padding: 5px 0; border-radius: 5px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 10000; margin: 0; }
+        .custom-menu li { padding: 10px 20px; list-style: none; cursor: pointer; font-size: 13px; font-weight: bold; color: #333; }
+        .custom-menu li:hover { background: #0d6efd; color: white; }
+
+        .badge-notif { background-color: #dc3545; color: white; border-radius: 50%; padding: 3px 7px; font-size: 12px; font-weight: bold; margin-left: 8px; box-shadow: 0 0 8px rgba(220, 53, 69, 0.6); animation: latido 1.5s infinite; display: inline-block; }
+        @keyframes latido { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(3px);}
+        .modal-scanner { background: white; padding: 30px; border-radius: 12px; width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; position: relative; }
+        .scan-group { margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; }
+        
+        /* 🔥 NUEVAS CLASES PARA EL INPUT CON CÁMARA 🔥 */
+        .input-scan-wrapper {
+            display: flex;
+            align-items: center;
+            border: 2px solid #adb5bd;
+            border-radius: 6px;
+            background-color: #ffffff;
+            overflow: hidden;
+            width: 100%;
+            height: 50px;
+            transition: 0.3s;
+        }
+        .input-scan-wrapper:focus-within { border-color: #0d6efd; box-shadow: 0 0 8px rgba(13, 110, 253, 0.3); }
+        .input-scan-wrapper.success { border-color: #198754; background-color: #d1e7dd; }
+        .input-scan-wrapper.disabled { background-color: #e9ecef; cursor: not-allowed; opacity: 0.7; }
+        
+        .btn-camara-inline {
+            background: #e9ecef;
+            border: none;
+            padding: 0 15px;
+            cursor: pointer;
+            border-right: 1px solid #dee2e6;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+        .btn-camara-inline:hover { background-color: #dee2e6; }
+        .btn-camara-inline:disabled { cursor: not-allowed; opacity: 0.5; }
+
+        .scan-input { 
+            width: 100%; 
+            padding: 10px; 
+            font-size: 18px; 
+            font-weight: bold; 
+            text-align: center; 
+            border: none; 
+            outline: none; 
+            background: transparent; 
+            text-transform: uppercase; 
+            color: #495057;
+        }
+        .scan-input.success { color: #0f5132; }
+        
+        .btn-cerrar-modal { background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; float: right; font-weight: bold; }
+        .chk-item-mover { cursor: pointer; width: 18px; height: 18px; accent-color: #0d6efd; }
+
+        /* 🔥 BOTONES FLOTANTES ALINEADOS A LA DERECHA 🔥 */
+        .fab-scanner { position: fixed; bottom: 30px; right: 30px; width: 65px; height: 65px; background-color: #0d6efd; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 28px; box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4); text-decoration: none; transition: 0.3s cubic-bezier(.25,.8,.25,1); z-index: 9999; }
+        .fab-scanner:hover { transform: scale(1.1); background-color: #0b5ed7; box-shadow: 0 6px 20px rgba(13, 110, 253, 0.6); }
+        
+        .fab-radar { position: fixed; bottom: 110px; right: 30px; width: 65px; height: 65px; background-color: #fd7e14; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 28px; box-shadow: 0 4px 15px rgba(253, 126, 20, 0.4); border: none; cursor: pointer; transition: 0.3s cubic-bezier(.25,.8,.25,1); z-index: 9999; }
+        .fab-radar:hover { transform: scale(1.1); background-color: #e66900; box-shadow: 0 6px 20px rgba(253, 126, 20, 0.6); }
+        
+        .fab-label { position: absolute; right: 75px; background: #343a40; color: white; padding: 8px 15px; border-radius: 8px; font-size: 13px; font-weight: bold; white-space: nowrap; opacity: 0; transition: 0.3s; pointer-events: none; }
+        .fab-scanner:hover .fab-label, .fab-radar:hover .fab-label, .fab-ia:hover .fab-label { opacity: 1; }
+
+        .drag-handle { cursor: grab; font-size: 20px; color: #adb5bd; margin-right: 10px; transition: 0.2s; user-select: none; }
+        .drag-handle:hover { color: #0d6efd; }
+        .drag-handle:active { cursor: grabbing; }
+        .sortable-ghost { opacity: 0.4; background-color: #f8f9fa; border: 2px dashed #0d6efd; }
+        .sortable-drag { box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important; cursor: grabbing !important; }
+
+        /* 🔥 ESTILOS PARA MENÚS DESPLEGABLES 🔥 */
+        .config-dropdown, .modulos-dropdown { position: relative; display: inline-block; }
+        
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 50px;
+            background-color: white;
+            min-width: 280px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            border-radius: 12px;
+            padding: 20px;
+            z-index: 10000;
+            border: 1px solid #e9ecef;
+        }
+
+        .dropdown-content-modulos {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 50px;
+            background-color: white;
+            min-width: 240px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            border-radius: 10px;
+            padding: 15px;
+            z-index: 10000;
+            border: 1px solid #e9ecef;
+        }
+
+        .dropdown-content::before { content: ""; position: absolute; top: -8px; right: 15px; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid white; }
+        .dropdown-content-modulos::before { content: ""; position: absolute; top: -8px; left: 25px; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid white; }
+
+        .show { display: block; animation: fadeIn 0.2s ease; }
+        .show-flex { display: flex; flex-direction: column; gap: 8px; animation: fadeIn 0.2s ease; }
+        
+        /* Ajuste para que los botones del menú de módulos ocupen todo el ancho */
+        .dropdown-content-modulos .btn-nav { width: 100%; justify-content: flex-start; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 🔥 MEDIA QUERY PARA CELULARES 🔥 */
+        @media (max-width: 768px) {
+            body { margin: 10px; padding-bottom: 80px; }
+            .navbar { flex-direction: column; align-items: center; padding: 10px; }
+            
+            .header-panel form { flex-direction: column; width: 100%; }
+            .header-panel input, .header-panel select, .header-panel button { width: 100% !important; margin-bottom: 8px; box-sizing: border-box; padding: 12px; }
+            
+            .carga-masiva-box { flex-direction: column; gap: 15px; padding: 15px; }
+            .carga-masiva-box > div:nth-child(2) { display: none; }
+
+            /* 🔥 FIX: EL RACK AHORA RESPETA LOS LIMITES Y PERMITE SCROLL 🔥 */
+            .almacen-layout { grid-template-columns: minmax(0, 1fr); width: 100%; }
+            
+            .modal-scanner { width: 95% !important; padding: 15px; box-sizing: border-box; max-height: 95vh; }
+            
+            .fab-scanner, .fab-radar, .fab-ia { width: 55px; height: 55px; font-size: 24px; right: 15px; }
+            .fab-scanner { bottom: 15px; }
+            .fab-radar { bottom: 80px; }
+            .fab-ia { bottom: 145px; }
+            .fab-label { display: none; }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+
+    {# 🔥 BANNER INTELIGENTE DE VENCIMIENTOS 🔥 #}
+    {% if alertas_vencimiento > 0 and current_user.rol in ['admin', 'jefe_logistica', 'supervisor', 'stock', 'consultas'] %}
+        <div style="margin: 20px auto; width: 100%;">
+            <div style="background: linear-gradient(135deg, #fff3cd 0%, #fff8e1 100%); border-left: 6px solid #ffc107; border-radius: 8px; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 6px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span style="font-size: 30px; animation: latido 1.5s infinite;">⏳</span>
+                    <div>
+                        <h4 style="margin: 0; font-size: 18px; color: #856404; font-weight: 900; text-transform: uppercase;">¡Alerta de Vencimientos!</h4>
+                        <p style="margin: 2px 0 0 0; font-size: 13.5px; color: #664d03;">
+                            Atención: Tenés <strong>{{ alertas_vencimiento }} lotes</strong> vencidos o que vencen en menos de <strong>{{ dias_config_alerta }} días</strong>.
+                        </p>
+                    </div>
+                </div>
+                <a href="{{ url_for('panel_vencimientos') }}" style="background-color: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; white-space: nowrap; box-shadow: 0 4px 10px rgba(220,53,69,0.3); transition: transform 0.2s;">
+                    Auditar Lotes ➔
+                </a>
+            </div>
+        </div>
+    
+        <style>
+            @keyframes latido {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.2); }
+                100% { transform: scale(1); }
+            }
+        </style>
+    {% endif %}
+
+    <div class="navbar">
+        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <h2 style="margin: 0; color: #333;">🗺️ Depósito Logística</h2>
+            <a href="{{ url_for('home') }}" class="btn-nav" style="background-color: #343a40;">🏠 Inicio</a>
+            
+            <div class="modulos-dropdown">
+                {% set total_notifs = (notif_logistica | default(0)) + (notif_reposiciones | default(0)) + (notif_picking | default(0)) %}
+                
+                <button onclick="toggleModulos()" class="btn-nav" style="background-color: #0d6efd; border: none; padding: 10px 20px; font-size: 14px; box-shadow: 0 2px 4px rgba(13,110,253,0.3);">
+                    ☰ Menú de Operaciones ▼
+                    {% if total_notifs > 0 %}
+                        <span class="badge-notif" title="Tareas pendientes">{{ total_notifs }}</span>
+                    {% endif %}
+                </button>
+                <div id="menuModulos" class="dropdown-content-modulos" {% if current_user.rol == 'consultas' %} style="max-height: 350px; overflow-y: auto;" {% endif %}>
+                    
+                    {% if current_user.rol in ['admin', 'jefe_logistica', 'stock', 'supervisor', 'consultas'] %}
+                        <a href="{{ url_for('recepcion_logistica') }}" class="btn-nav" style="background-color: #198754;">
+                            📥 Recepción 
+                            {% if notif_logistica and notif_logistica > 0 %}
+                                <span class="badge-notif" title="Remitos pendientes">{{ notif_logistica }}</span>
+                            {% endif %}
+                        </a>
+                    {% endif %} 
+                    
+                    {% if current_user.rol in ['admin', 'jefe_logistica', 'stock', 'supervisor', 'consultas'] %}
+                        <a href="{{ url_for('historial_remitos') }}" class="btn-nav" style="background-color: #212529;">📋 Historial Remitos</a>
+                    {% endif %}
+
+                    {% if current_user.rol != 'supervisor' %}
+                        <a href="{{ url_for('nomina_logistica') }}" class="btn-nav" style="background-color: #6f42c1;">📖 Nómina</a>
+                    {% endif %}
+                    
+                    {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+                        <a href="{{ url_for('gestionar_usuarios', sector='logistica') }}" class="btn-nav" style="background-color: #ffc107; color: #000;">⚙️ Usuarios</a>
+                    {% endif %}
+                    
+                    {% if current_user.rol not in ['stock', 'ruteador', 'Ruteador'] %}
+                        <a href="{{ url_for('ver_picking') }}" class="btn-nav" style="background-color: #0d6efd;">
+                            📋 Picking
+                            {% if notif_picking and notif_picking > 0 %}
+                                <span class="badge-notif" title="SKUs pendientes de armar">{{ notif_picking }}</span>
+                            {% endif %}
+                        </a>
+                    {% endif %}
+
+                    {% if current_user.rol not in ['stock', 'ruteador', 'Ruteador'] %}
+                        <a href="{{ url_for('reposiciones') }}" class="btn-nav" style="background-color: #fd7e14; color: white;">
+                            🚜 Reposiciones
+                            {% if notif_reposiciones and notif_reposiciones > 0 %}
+                                <span class="badge-notif" title="Reposiciones pendientes">{{ notif_reposiciones }}</span>
+                            {% endif %}
+                        </a>
+                    {% endif %}
+                    
+                    {% if current_user.rol in ['admin', 'ruteador', 'Ruteador', 'jefe_logistica'] %}
+                        <a href="{{ url_for('subir_pedidos') }}" class="btn-nav" style="background-color: #198754;">📥 Pedidos</a>
+                    {% endif %}
+                    
+                    {% if current_user.rol in ['admin', 'jefe_logistica', 'stock', 'supervisor', 'consultas'] %}
+                        <a href="{{ url_for('historial', sector='logistica') }}" class="btn-nav" style="background-color: #0dcaf0; color: #000;">📄 Historial Log</a>
+                        <a href="{{ url_for('consulta_rapida', sector='logistica') }}" class="btn-nav" style="background-color: white; color: #0d6efd; border: 1px solid #0d6efd;">🔍 Consultar</a>
+                    {% endif %}
+
+                    {% if current_user.rol in ['admin', 'jefe_logistica', 'stock', 'ruteador', 'Ruteador', 'consultas'] %}
+                        <a href="{{ url_for('exportar_stock') }}" class="btn-nav" style="background-color: #fd7e14;">📊 Exportar</a>
+                    {% endif %}
+
+                    {% if current_user.rol in ['admin', 'jefe_logistica', 'supervisor', 'operario', 'operario_logistica'] %}
+                        <a href="#" onclick="abrirModalScanner(); return false;" class="btn-nav" style="background-color: #6f42c1;">🔄 Reubicación</a>
+                    {% endif %}
+
+                    {% if current_user.rol in ['admin', 'jefe_logistica', 'supervisor'] %}
+                        <a href="{{ url_for('mantenimiento') }}" class="btn-nav" style="background-color: #dc2626; color: white; border: 1px solid #b91c1c;">
+                            🚜 Mantenimiento TPM
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
+            
+            <a href="{{ url_for('logout') }}" class="btn-nav" style="background-color: #dc3545;">🚪 Salir</a>
+            
+            {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+            <div class="config-dropdown">
+                <button onclick="toggleConfig()" style="background: #f1f3f5; border: 1px solid #dee2e6; color: #495057; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 18px; transition: 0.2s;">
+                    ⚙️ <span style="font-size: 13px; font-weight: bold; margin-left: 5px;">Ajustes</span>
+                </button>
+
+                <div id="miDesplegable" class="dropdown-content">
+                    <h4 style="margin: 0 0 15px 0; font-size: 14px; color: #212529; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        🛠️ Configuración de WMS
+                    </h4>
+                
+                    <form action="{{ url_for('configurar_vencimiento') }}" method="POST">
+                        <label style="display: block; font-size: 12px; color: #6c757d; margin-bottom: 8px;">
+                            Rango de alerta de vencimiento:
+                        </label>
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 15px;">
+                            <input type="number" name="dias" value="{{ dias_alerta }}" min="1" max="365" 
+                                   style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ced4da; font-weight: bold; text-align: center;">
+                            <span style="font-size: 12px; color: #495057; font-weight: bold;">DÍAS</span>
+                        </div>
+                    
+                        <button type="submit" style="width: 100%; background: #212529; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;">
+                            Guardar Cambios
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if maquinas_alerta and current_user.rol in ['admin', 'jefe_logistica','supervisor'] %}
+    <div style="background: #dc2626; color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; font-weight: bold; border: 4px solid #991b1b; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(220, 38, 38, 0.4); animation: latido-mantenimiento 2s infinite;">
+        <div>
+            <h3 style="margin: 0 0 5px 0; font-size: 20px; text-transform: uppercase;">🚨 ¡Alerta de Mantenimiento Preventivo!</h3>
+            <p style="margin: 0; font-size: 14px; opacity: 0.9;">El siguiente equipamiento requiere revisión. Este cartel bloqueará visualmente el tablero hasta que se complete la tarea.</p>
+            <ul style="margin: 10px 0 0 0; padding-left: 20px; font-size: 15px;">
+                {% for m in maquinas_alerta %}
+                    <li><strong>{{ m.nombre }}</strong> (Vence: {{ m.fecha_proxima_revision.strftime('%d/%m/%Y') }})</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <a href="{{ url_for('mantenimiento') }}" style="background: white; color: #dc2626; padding: 15px 25px; border-radius: 8px; text-decoration: none; font-weight: 900; text-transform: uppercase; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Registrar Revisión ➔</a>
+    </div>
+
+    <style>
+        @keyframes latido-mantenimiento {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+    </style>
+    {% endif %}
+
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+
+    {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        
+        {% for stat in stats_depositos %}
+        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 20px; border-left: 5px solid {{ stat.color_alerta }};">
+            
+            <div style="width: 90px; height: 90px; flex-shrink: 0;">
+                <canvas id="graficoOcupacion_{{ loop.index }}"></canvas>
+            </div>
+            
+            <div style="flex-grow: 1;">
+                <h3 style="margin: 0; color: #495057; font-size: 15px; text-transform: uppercase;">📍 {{ stat.nombre }}</h3>
+                <p style="font-size: 24px; font-weight: bold; color: {{ stat.color_alerta }}; margin: 5px 0;">{{ stat.porcentaje }}%</p>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                    <span style="color: #6c757d;">Usados: {{ stat.ocupados }}/{{ stat.total }}</span>
+                    <span style="color: #198754; font-weight: bold;">Libres: {{ stat.vacios }}</span>
+                </div>
+                
+                <div style="width: 100%; background: #e9ecef; height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div style="width: {{ stat.porcentaje }}%; background: {{ stat.color_alerta }}; height: 100%;"></div>
+                </div>
+            </div>
+            
+        </div>
+        {% endfor %}
+        
+    </div>
+    {% endif %}
+
+    <div class="header-panel">
+
+        {% if current_user.rol != 'operario' %}
+            <form id="formBuscadorAuditoria" action="{{ url_for('buscar') }}" method="GET" style="display: flex; gap: 5px;">
+                <input type="hidden" name="sector" value="logistica">
+                <input type="text" id="inputBuscadorAuditoria" name="q" placeholder="Buscar SKU/LOTE" required style="width: 200px;">
+                <button type="submit" class="btn-blue">🔍 Buscar</button>
+            </form>
+        {% endif %}
+
+        
+
+        {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+        <form action="{{ url_for('crear_rack') }}" method="POST" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <input type="hidden" name="sector" value="logistica">
+            
+            <input type="text" name="deposito_rack" placeholder="Depósito (Ej: Depo 100)" required style="width: 150px; border: 2px solid #fd7e14; background-color: #fff9f5;">
+            
+            <input type="text" name="nombre" placeholder="Nombre Fantasía" required style="width: 140px;">
+            <input type="text" name="codigo_tecnico" placeholder="ID Base" required style="width: 120px; border: 2px solid #0d6efd; background-color: #f8f9ff;">
+            
+            <input type="number" name="niveles" placeholder="Niv" min="1" required style="width: 60px;">
+            <input type="number" name="posiciones" placeholder="Pos" min="1" required style="width: 60px;">
+            
+            <select name="tipo_pos">
+                <option value="secuencial">Pos. 1, 2, 3...</option>
+                <option value="impares">Pos. 1, 3, 5...</option>
+                <option value="pares">Pos. 2, 4, 6...</option>
+            </select>
+            
+            <select name="multi_nivel">
+                <option value="1" selected>Alt. 1, 2, 3...</option>
+                <option value="10">Alt. 10, 20, 30...</option>
+                <option value="100">Alt. 100, 200, 300...</option>
+                <option value="1000">Alt. 1000, 2000, 3000...</option>
+            </select>
+            
+            <button type="submit" class="btn-blue">+ Crear Rack</button>
+        </form>
+        {% endif %}
+    </div>
+
+
+    {% if current_user.rol in ['admin', 'jefe_logistica', 'stock', 'supervisor'] %}
+    <div class="carga-masiva-box">
+        <div style="flex: 1;">
+            <h4 style="margin: 0 0 10px 0; color: #0d6efd;">📦 1. Cargar Stock Logística (Excel)</h4>
+            <a href="{{ url_for('descargar_plantilla_inventario') }}" class="btn-plantilla">📥 Plantilla Stock</a>
+            <form action="{{ url_for('importar_inventario') }}" method="POST" enctype="multipart/form-data" style="display: flex; gap: 8px;">
+                <input type="file" name="archivo_inventario" accept=".xlsx, .xls" required style="font-size: 11px; flex-grow: 1;">
+                <button type="submit" style="background: #198754; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">Subir Stock</button>
+            </form>
+        </div>
+        {% if current_user.rol in ['admin', 'jefe_logistica', 'stock'] %}
+        <div style="width: 1px; height: 80px; background: #dee2e6; margin: 0 10px;"></div>
+        <div style="flex: 1;">
+            <h4 style="margin: 0 0 10px 0; color: #343a40;">📖 2. Cargar Nómina Logística (CSV)</h4>
+            <a href="{{ url_for('descargar_plantilla_catalogo') }}" class="btn-plantilla" style="color: #343a40; border-color: #343a40;">📥 Plantilla Nómina</a>
+            <form action="{{ url_for('importar_productos') }}" method="POST" enctype="multipart/form-data" style="display: flex; gap: 8px;">
+                <input type="file" name="archivo_csv" accept=".csv" required style="font-size: 11px; flex-grow: 1;">
+                <button type="submit" style="background: #343a40; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">Subir Nómina</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+
+    {% if current_user.rol != 'operario' %}
+    <div id="contenedor-depositos">
+        {% for nombre_depo, racks_del_depo in racks|groupby('deposito') %}
+            
+            <details class="carpeta-deposito" style="margin-bottom: 20px; background: white; border-radius: 8px; border: 1px solid #ced4da; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                
+                <summary style="padding: 15px 20px; font-weight: bold; font-size: 18px; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; background: #e2e8f0; border-radius: 8px;">
+                    <span style="font-size: 22px;">📁</span> 
+                    {{ nombre_depo | upper }} 
+                    <span style="background: #1d4ed8; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: auto;">
+                        {{ racks_del_depo|length }} racks
+                    </span>
+                </summary>
+                
+                <div style="padding: 20px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
+                    <div class="almacen-layout" id="grid-racks-{{ loop.index }}">
+                        
+                        {% for rack in racks_del_depo %}
+                            <div class="rack-card" data-id="{{ rack.id }}">
+                                <div class="rack-header">
+                                    <div style="display: flex; align-items: center;">
+                                        {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+                                            <span class="drag-handle" title="Arrastrar para mover">⠿</span>
+                                        {% endif %}
+                                        <div>
+                                            <span style="font-weight: bold; color: #495057; display: block;">📍 {{ rack.nombre }}</span>
+                                            <small style="color: #999; font-size: 10px; font-weight: normal;">
+                                                ID Base: {{ rack.ubicaciones[0].codigo_unico.split('-')[0] if rack.ubicaciones else 'S/D' }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    {% if current_user.rol in ['admin', 'jefe_logistica', 'jefe_materias_primas'] %}
+                                        <div style="display: flex; gap: 10px; align-items: center;">
+                        
+                                            <button type="button" 
+                                                    onclick="renombrarRack('{{ rack.id }}', '{{ rack.nombre }}', '{{ rack.deposito }}')"
+                                                    style="background: none; border: none; color: #ffc107; cursor: pointer; font-size: 16px; padding: 0;" 
+                                                    title="Editar nombre">
+                                                ✏️
+                                            </button>
+
+                                            <form action="{{ url_for('eliminar_rack', rack_id=rack.id) }}" method="POST" onsubmit="return confirm('¿Seguro que querés eliminar el rack?');" style="margin: 0; display: flex;">
+                                                <button type="submit" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px; padding: 0;">
+                                                    🗑️
+                                                </button>
+                                            </form>
+
+                                            <form id="form-renombrar-{{ rack.id }}" action="{{ url_for('editar_nombre_rack', rack_id=rack.id) }}" method="POST" style="display:none;">
+                                                <input type="hidden" name="nuevo_nombre" id="input-renombrar-{{ rack.id }}">
+                                                <input type="hidden" name="nuevo_deposito" id="input-deposito-{{ rack.id }}">
+                                            </form>
+
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="matriz">
+                                    {% for n in range(rack.niveles, 0, -1) %}
+                                        {% set nivel_real = n * (rack.multi_nivel if rack.multi_nivel else 1) %}
+                                        <div class="fila-nivel">
+                                            <div class="etiqueta-nivel">{{ nivel_real }}</div>
+                                            {% for p in range(1, rack.posiciones + 1) %}
+                                                {% set tipo = rack.tipo_pos if rack.tipo_pos else 'secuencial' %}
+                                                {% if tipo == 'impares' %}{% set pos_real = (p * 2) - 1 %}
+                                                {% elif tipo == 'pares' %}{% set pos_real = p * 2 %}
+                                                {% else %}{% set pos_real = p %}{% endif %}
+
+                                                {# 🔥 EL FIX MÁGICO QUE ACELERA TODO x1000 🔥 #}
+                                                {% set llave_ubi = nivel_real|string ~ "-" ~ pos_real|string %}
+                                                {% set ubi_act = mapa_ubis.get(rack.id, {}).get(llave_ubi, {'estado': 'Disponible', 'id': 0, 'ocupada': false, 'tiene_sub': false}) %}
+
+                                                {% if ubi_act.estado.startswith('Hijo_') %}
+                                                    <div style="display: none;"></div>
+                                                {% else %}
+                                                    <a href="{{ url_for('detalle_ubicacion', rack_id=rack.id, pos=pos_real, nivel=nivel_real) }}" 
+                                                       class="celda-posicion 
+                                                              {% if ubi_act.estado.startswith('Padre_') %}pos-unificada{% endif %}
+                                                              {% if ubi_act.ocupada %}pos-ocupada{% elif ubi_act.estado == 'Bloqueada' %}pos-bloqueada{% endif %}"
+                                                       oncontextmenu="event.preventDefault(); abrirMenuContextual(event, {{ ubi_act.id }}, '{{ ubi_act.estado }}');">
+                                                       
+                                                        {{ pos_real }} {% if ubi_act.estado.startswith('Padre_') %} ↔️ {% endif %}
+                                                        
+                                                        {% if ubi_act.tiene_sub %}
+                                                            <div class="indicador-subdivision" title="Contiene cajas o subdivisiones"></div>
+                                                        {% endif %}
+                                                    </a>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                        
+                    </div>
+                </div>
+            </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 60px; background: white; border-radius: 12px; border: 1px solid #dee2e6; margin-top: 20px;">
+        <div style="font-size: 60px; margin-bottom: 20px;">📋</div>
+        <h2 style="color: #1e293b; margin: 0;">Panel Operativo de Logística</h2>
+        <p style="color: #64748b; font-size: 16px;">Bienvenido al sistema. Utilizá el <b>Menú de Operaciones</b> superior para gestionar tus tareas asignadas.</p>
+        <div style="margin-top: 25px; display: flex; justify-content: center; gap: 15px;">
+             <span style="background: #e0f2fe; color: #0369a1; padding: 8px 15px; border-radius: 20px; font-size: 13px; font-weight: bold;">✔ Picking Activo</span>
+             <span style="background: #fef3c7; color: #92400e; padding: 8px 15px; border-radius: 20px; font-size: 13px; font-weight: bold;">✔ Reposiciones</span>
+        </div>
+    </div>
+    {% endif %}
+
+
+    <ul class='custom-menu' id="contextMenu">
+        <li id="btnToggleBloqueo">🚫 Anular / Habilitar</li>
+        <li id="btnToggleUnificacion" style="border-top: 1px solid #eee; display: none;">🔗 Unificar con la derecha</li>
+    </ul>
+
+    <div id="modalScanner" class="modal-overlay">
+        <div class="modal-scanner" style="width: 500px;">
+            <button class="btn-cerrar-modal" onclick="cerrarModalScanner()">X Cerrar</button>
+            <h2 style="margin-top: 0; color: #6f42c1;">🔄 Reubicar</h2>
+            <p style="color: #6c757d; font-size: 13px; margin-bottom: 20px;">Escanee las ubicaciones. Seleccione qué productos mover de la lista.</p>
+
+            <div id="contenedor-lector-reubicar" style="display: none; margin-bottom: 15px; border-radius: 10px; overflow: hidden; border: 3px solid #0d6efd; background: #000;">
+                <div id="lector-reubicar" style="width: 100%; min-height: 250px;"></div>
+                <button type="button" onclick="cerrarCamaraReubicar()" style="background: #dc2626; color: white; width: 100%; padding: 12px; border: none; font-weight: bold; cursor: pointer;">❌ CERRAR CÁMARA</button>
+            </div>
+
+            <div id="formScanner">
+                <input type="hidden" id="hide_rack">
+                <input type="hidden" id="hide_niv">
+                <input type="hidden" id="hide_pos">
+                <input type="hidden" id="hide_sub_destino" value="General">
+
+                <div class="scan-group" id="grupoOrigen">
+                    <label style="font-weight: bold; color: #495057; display: block; margin-bottom: 5px;">1. Escanear ORIGEN</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        
+                        <div class="input-scan-wrapper" id="wrapper-origen">
+                            <button type="button" class="btn-camara-inline" onclick="abrirCamaraReubicar('origen')" title="Escanear Origen">📷</button>
+                            <input type="text" id="scanOrigen" class="scan-input" placeholder="Ej: A-01-01" autocomplete="off">
+                        </div>
+                        
+                        <button type="button" id="btnResetOrigen" onclick="resetOrigen()" style="display: none; background: #6c757d; color: white; border: none; border-radius: 6px; padding: 0 15px; font-weight: bold; cursor: pointer; transition: 0.2s; height: 50px;" title="Escanear otro origen">🔄</button>
+                    </div>
+                    <p id="msgOrigen" style="color: #dc3545; font-size: 12px; font-weight: bold; margin-top: 5px; display: none;"></p>
+                </div>
+
+                <div class="scan-group" id="grupoMercaderia" style="display: none; background: #e7f1ff; border-color: #cfe2ff; max-height: 200px; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="font-weight: bold; color: #0d6efd; margin: 0;">¿Qué productos movemos?</label>
+                        <div style="display: flex; gap: 5px;">
+                            <button type="button" onclick="toggleTodos(true)" style="background: #0d6efd; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-weight: bold;">☑️ Todos</button>
+                            <button type="button" onclick="toggleTodos(false)" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-weight: bold;">🔳 Ninguno</button>
+                        </div>
+                    </div>
+                    <div id="listaItemsModal" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+                    
+
+                <div class="scan-group" id="grupoDestino">
+                    <label style="font-weight: bold; color: #495057; display: block; margin-bottom: 5px;">2. Escanear DESTINO</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        
+                        <div class="input-scan-wrapper" id="wrapper-destino" style="background-color: #e9ecef;">
+                            <button type="button" id="btn-camara-destino" class="btn-camara-inline" onclick="abrirCamaraReubicar('destino')" title="Escanear Destino" disabled>📷</button>
+                            <input type="text" id="scanDestino" class="scan-input" placeholder="Bloqueado..." disabled autocomplete="off">
+                        </div>
+                        
+                        <button type="button" id="btnResetDestino" onclick="resetDestino()" style="display: none; background: #6c757d; color: white; border: none; border-radius: 6px; padding: 0 15px; font-weight: bold; cursor: pointer; transition: 0.2s; height: 50px;" title="Escanear otro destino">🔄</button>
+                    </div>
+                    <p id="msgDestino" style="color: #dc3545; font-size: 12px; font-weight: bold; margin-top: 5px; display: none;"></p>
+                </div>
+
+                <button type="button" id="btnConfirmarScanner" onclick="procesarEnvioFinal()" style="width: 100%; padding: 15px; font-size: 18px; background: #198754; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: none; transition: 0.3s;">
+                    ✅ Confirmar Reubicación Múltiple
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <a href="{{ url_for('consulta_rapida') }}" class="fab-scanner" title="Consultar Posición">
+        <span class="fab-label">Consultar Posición</span>
+        🕵️‍♂️
+    </a>
+
+    {% if current_user.rol in ['admin', 'jefe_logistica', 'supervisor', 'operario', 'operario_logistica'] %}
+    <form action="{{ url_for('radar_reposicion') }}" method="POST" style="margin: 0;" onsubmit="document.getElementById('radar-icon').innerText = '⏳'; this.querySelector('button').disabled = true;">
+        <button type="submit" class="fab-radar" title="Ejecutar Radar de Reposición">
+            <span class="fab-label">📡 Ejecutar Radar</span>
+            <span id="radar-icon">📡</span>
+        </button>
+    </form>
+    {% endif %}
+
+
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // 🔥 APLICAMOS SORTABLEJS A CADA CARPETA POR SEPARADO 🔥
+            const almacenLayouts = document.querySelectorAll('.almacen-layout');
+            
+            almacenLayouts.forEach(layout => {
+                new Sortable(layout, {
+                    animation: 150, 
+                    handle: '.drag-handle', 
+                    ghostClass: 'sortable-ghost',
+                    forceFallback: true, 
+                    fallbackClass: 'sortable-drag',
+                    fallbackOnBody: true, 
+                    swapThreshold: 0.65,  
+                    // Ignora eventos táctiles en la matriz (permite scroll) si no tocan el drag-handle
+                    filter: '.matriz', 
+                    preventOnFilter: false,
+                    onEnd: function (evt) {
+                        // Cuando soltás el rack, juntamos TODOS los IDs de TODOS los contenedores en orden
+                        const itemEls = document.querySelectorAll('.rack-card');
+                        const nuevoOrden = Array.from(itemEls).map(el => el.getAttribute('data-id'));
+                        
+                        fetch('/guardar_orden_racks', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ orden: nuevoOrden })
+                        }).then(res => res.json()).then(data => {
+                            if (data.status !== 'ok') {
+                                alert('Hubo un problema guardando el orden en la base de datos.');
+                            }
+                        });
+                    },
+                });
+            });
+        });
+    </script>
+
+    <script>
+        // ==========================================
+        // GRÁFICOS DINÁMICOS POR DEPÓSITO
+        // ==========================================
+        {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+            {% for stat in stats_depositos %}
+            new Chart(document.getElementById('graficoOcupacion_{{ loop.index }}').getContext('2d'), {
+                type: 'doughnut',
+                data: { 
+                    labels: ['Ocupado', 'Vacío'], 
+                    datasets: [{ 
+                        data: [{{ stat.ocupados }}, {{ stat.vacios }}], 
+                        backgroundColor: ['{{ stat.color_alerta }}', '#e9ecef'], 
+                        borderWidth: 0, 
+                        cutout: '75%' 
+                    }] 
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+            {% endfor %}
+        {% endif %}
+
+        // ==========================================
+        // LÓGICA DEL MENÚ CONTEXTUAL (Click Derecho)
+        // ==========================================
+        const contextMenu = document.getElementById('contextMenu');
+        let ubiIdSeleccionada = 0;
+
+        function abrirMenuContextual(e, id, estado) {
+            {% if current_user.rol not in ['admin', 'supervisor', 'jefe_logistica'] %} return; {% endif %}
+            if (id === 0) return;
+
+            ubiIdSeleccionada = id;
+            const btnBloqueo = document.getElementById('btnToggleBloqueo');
+            const btnUnif = document.getElementById('btnToggleUnificacion');
+            
+            if (estado === 'Bloqueada') {
+                btnBloqueo.innerText = "✅ Habilitar Posición";
+                btnBloqueo.style.display = 'block';
+                btnUnif.style.display = 'none';
+            } else if (estado.startsWith('Padre_')) {
+                btnBloqueo.style.display = 'none';
+                btnUnif.innerText = "✂️ Desunificar bloque (Dividir)";
+                btnUnif.style.display = 'block';
+            } else {
+                btnBloqueo.innerText = "🚫 Anular por Magnitud";
+                btnBloqueo.style.display = 'block';
+                btnUnif.innerText = "🔗 Unificar con la derecha ➔";
+                btnUnif.style.display = 'block';
+            }
+
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = e.pageX + "px";
+            contextMenu.style.top = e.pageY + "px";
+        }
+
+        window.onclick = function(e) {
+            if (e.target.id !== 'btnToggleBloqueo' && e.target.id !== 'btnToggleUnificacion') {
+                contextMenu.style.display = 'none';
+            }
+        };
+
+        document.getElementById('btnToggleBloqueo').onclick = function() {
+            if (ubiIdSeleccionada === 0) return;
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/toggle_bloqueo_ubicacion/' + ubiIdSeleccionada;
+            document.body.appendChild(form);
+            form.submit();
+        };
+
+        document.getElementById('btnToggleUnificacion').onclick = function() {
+            if (ubiIdSeleccionada === 0) return;
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/toggle_unificacion/' + ubiIdSeleccionada;
+            document.body.appendChild(form);
+            form.submit();
+        };
+
+        // ==========================================
+        // LÓGICA DEL SCANNER MODAL (REUBICACIÓN MULTIPLE)
+        // ==========================================
+        const modal = document.getElementById('modalScanner');
+        const inOrigen = document.getElementById('scanOrigen');
+        const inDestino = document.getElementById('scanDestino');
+        const wrapperOrigen = document.getElementById('wrapper-origen');
+        const wrapperDestino = document.getElementById('wrapper-destino');
+        const btnCamaraDestino = document.getElementById('btn-camara-destino');
+        const listaItemsDiv = document.getElementById('listaItemsModal');
+        const btnSubmit = document.getElementById('btnConfirmarScanner');
+
+        let tiempoInicioOrigen = 0;
+        let tiempoInicioDestino = 0;
+        const LIMITE_MILISEGUNDOS = 800; 
+        
+        let targetActual = 'origen'; 
+
+        function abrirModalScanner() {
+            modal.style.display = 'flex';
+            resetOrigen(); 
+            setTimeout(() => inOrigen.focus(), 100);
+        }
+
+        function cerrarModalScanner() {
+            modal.style.display = 'none';
+        }
+
+        function resetOrigen() {
+            inOrigen.value = '';
+            inOrigen.disabled = false;
+            inOrigen.classList.remove('success');
+            wrapperOrigen.classList.remove('success');
+            
+            document.getElementById('msgOrigen').style.display = 'none';
+            document.getElementById('btnResetOrigen').style.display = 'none';
+            
+            document.getElementById('grupoMercaderia').style.display = 'none';
+            listaItemsDiv.innerHTML = '';
+            
+            resetDestino();
+            inDestino.disabled = true;
+            btnCamaraDestino.disabled = true;
+            wrapperDestino.style.backgroundColor = '#e9ecef';
+            inDestino.placeholder = 'Bloqueado...';
+            
+            inOrigen.focus();
+        }
+
+        function resetDestino() {
+            inDestino.value = '';
+            
+            // 🔥 ACÁ ESTÁ EL FIX DE LA CÁMARA 🔥
+            inDestino.disabled = false;
+            btnCamaraDestino.disabled = false; 
+            wrapperDestino.style.backgroundColor = '#ffffff'; 
+            
+            inDestino.classList.remove('success');
+            wrapperDestino.classList.remove('success');
+            
+            document.getElementById('msgDestino').style.display = 'none';
+            document.getElementById('msgDestino').innerHTML = '';
+            document.getElementById('btnResetDestino').style.display = 'none';
+            
+            btnSubmit.style.display = 'none';
+            document.getElementById('hide_sub_destino').value = 'General';
+            
+            if (!inDestino.disabled) {
+                inDestino.focus();
+            }
+        }
+
+        inOrigen.addEventListener('paste', e => e.preventDefault());
+        inDestino.addEventListener('paste', e => e.preventDefault());
+
+        // 🔥 MAGIA DE SILENCIO PARA ORIGEN 🔥
+        inOrigen.addEventListener('keydown', function(e) {
+            if (inOrigen.value.length === 0) {
+                tiempoInicioOrigen = new Date().getTime();
+            }
+        });
+
+        let timerOrigenEscaneo;
+        inOrigen.addEventListener('keyup', function(e) { 
+            clearTimeout(timerOrigenEscaneo);
+            
+            let tiempoTipeo = new Date().getTime() - tiempoInicioOrigen;
+            
+            timerOrigenEscaneo = setTimeout(() => {
+                const cod = inOrigen.value.trim().replace(/'/g, '-');
+                if(cod === '') return;
+
+                if (tiempoTipeo > LIMITE_MILISEGUNDOS) {
+                    document.getElementById('msgOrigen').innerText = '⛔ Tipeo manual detectado. Por favor, use la pistola láser o la cámara.';
+                    document.getElementById('msgOrigen').style.display = 'block';
+                    inOrigen.value = '';
+                    return;
+                }
+
+                fetch('/api/escanear_ubicacion/' + encodeURIComponent(cod))
+                .then(res => {
+                    if (!res.ok) throw new Error('Posición no encontrada');
+                    return res.json();
+                })
+                .then(data => {
+                    if(data.status === 'ok') {
+                        if(data.items.length === 0) {
+                            document.getElementById('msgOrigen').innerText = '❌ Ubicación válida pero VACÍA.';
+                            document.getElementById('msgOrigen').style.display = 'block';
+                            inOrigen.value = '';
+                            return;
+                        }
+                        
+                        inOrigen.disabled = true;
+                        inOrigen.classList.add('success');
+                        wrapperOrigen.classList.add('success');
+                        document.getElementById('msgOrigen').style.display = 'none';
+                        
+                        document.getElementById('btnResetOrigen').style.display = 'block';
+                        
+                        listaItemsDiv.innerHTML = '';
+                        data.items.forEach(item => {
+                            const descArr = item.texto.split(' | ');
+                            const skuTxt = descArr[0];
+                            const loteTxt = descArr[2] ? `${descArr[2]}` : '';
+
+                            const divBox = document.createElement('div');
+                            divBox.style.cssText = "display: flex; align-items: center; justify-content: space-between; background: white; padding: 10px; border-radius: 6px; border: 1px solid #dee2e6;";
+                            
+                            divBox.innerHTML = `
+                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1;">
+                                    <input type="checkbox" class="chk-item-mover" value="${item.id}" checked 
+                                           onchange="document.getElementById('cant_mover_${item.id}').disabled = !this.checked">
+                                    <span style="font-weight: bold; font-size: 13px; color: #333;">${skuTxt} <br><small style="color:#6c757d; font-weight: normal;">${loteTxt}</small></span>
+                                </label>
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <span style="font-size: 11px; color: #6c757d; font-weight: bold;">Cant:</span>
+                                    <input type="number" id="cant_mover_${item.id}" min="1" max="${item.max}" value="${item.max}" style="width: 65px; padding: 6px; font-weight: bold; text-align: center; border: 1px solid #ced4da; border-radius: 4px;" required>
+                                </div>
+                            `;
+                            listaItemsDiv.appendChild(divBox);
+                        });
+                        
+                        document.getElementById('grupoMercaderia').style.display = 'block';
+
+                        // Habilitar Destino
+                        inDestino.disabled = false;
+                        btnCamaraDestino.disabled = false;
+                        wrapperDestino.style.backgroundColor = '#ffffff';
+                        inDestino.placeholder = 'Ej: B-02-01';
+                        inDestino.focus();
+                    } else {
+                        document.getElementById('msgOrigen').innerText = data.msg;
+                        document.getElementById('msgOrigen').style.display = 'block';
+                        inOrigen.value = '';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('msgOrigen').innerText = '❌ Error: La posición no existe o no está creada.';
+                    document.getElementById('msgOrigen').style.display = 'block';
+                    inOrigen.value = '';
+                });
+            }, 300); 
+        });
+
+        // 🔥 MAGIA DE SILENCIO PARA DESTINO 🔥
+        inDestino.addEventListener('keydown', function(e) {
+            if (inDestino.value.length === 0) {
+                tiempoInicioDestino = new Date().getTime();
+            }
+        });
+
+        let timerDestinoEscaneo;
+        inDestino.addEventListener('keyup', function(e) { 
+            clearTimeout(timerDestinoEscaneo);
+            
+            let tiempoTipeo = new Date().getTime() - tiempoInicioDestino;
+
+            timerDestinoEscaneo = setTimeout(() => {
+                const cod = inDestino.value.trim().replace(/'/g, '-');
+                if(cod === '') return;
+
+                if (tiempoTipeo > LIMITE_MILISEGUNDOS) {
+                    document.getElementById('msgDestino').innerText = '⛔ Tipeo manual detectado. Por favor, use la pistola láser o la cámara.';
+                    document.getElementById('msgDestino').style.display = 'block';
+                    inDestino.value = '';
+                    return;
+                }
+
+                if(cod.toUpperCase() === inOrigen.value.trim().replace(/'/g, '-').toUpperCase()) {
+                    document.getElementById('msgDestino').innerText = '❌ El destino no puede ser igual al origen.';
+                    document.getElementById('msgDestino').style.display = 'block';
+                    inDestino.value = '';
+                    return;
+                }
+
+                fetch('/api/escanear_ubicacion/' + encodeURIComponent(cod))
+                .then(res => {
+                    if (!res.ok) throw new Error('Posición no encontrada');
+                    return res.json();
+                })
+                .then(data => {
+                    if(data.status === 'ok') {
+                        inDestino.disabled = true;
+                        btnCamaraDestino.disabled = true;
+                        inDestino.classList.add('success');
+                        wrapperDestino.classList.add('success');
+                        
+                        document.getElementById('hide_rack').value = data.rack;
+                        document.getElementById('hide_niv').value = data.nivel;
+                        document.getElementById('hide_pos').value = data.posicion;
+
+                        document.getElementById('btnResetDestino').style.display = 'block';
+
+                        let subdivisiones = [];
+                        if(data.items && data.items.length > 0) {
+                            data.items.forEach(i => {
+                                let subArr = i.texto.split(' | ');
+                                if(subArr.length > 2) {
+                                    let sub = subArr[2].replace('Sub: ', '').trim();
+                                    if(sub !== 'General' && sub !== 'vacia' && !subdivisiones.includes(sub)) {
+                                        subdivisiones.push(sub);
+                                    }
+                                }
+                            });
+                        }
+
+                        if (data.sub_ubicacion === 'General' && subdivisiones.length > 0) {
+                            let selectHTML = `
+                            <div style="margin-top: 10px; background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba;">
+                                <label style="color: #856404; font-weight: bold; display: block; margin-bottom: 8px;">
+                                    ⚠️ Este estante contiene cajas. ¿Dónde depositamos la mercadería?
+                                </label>
+                                <select id="select_sub_destino" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ffc107; font-size: 14px; font-weight: bold; color: #333; outline: none;">
+                                    <option value="">-- Seleccioná la caja destino --</option>`;
+                            
+                            subdivisiones.forEach(sub => {
+                                selectHTML += `<option value="${sub}">📥 Mover ADENTRO de la caja: ${sub}</option>`;
+                            });
+                            
+                            selectHTML += `</select>
+                                <div style="text-align: center; margin-top: 15px;">
+                                    <button type="button" onclick="resetDestino()" style="background: none; border: none; color: #b45309; text-decoration: underline; cursor: pointer; font-weight: bold; font-size: 13px;">
+                                        ❌ Me equivoqué de estante, volver a escanear
+                                    </button>
+                                </div>
+                            </div>`;
+
+                            const msgDest = document.getElementById('msgDestino');
+                            msgDest.innerHTML = selectHTML;
+                            msgDest.style.display = 'block';
+                            msgDest.style.color = 'inherit';
+
+                            document.getElementById('select_sub_destino').addEventListener('change', function() {
+                                if (this.value !== '') {
+                                    document.getElementById('hide_sub_destino').value = this.value;
+                                    btnSubmit.style.display = 'block';
+                                    btnSubmit.focus();
+                                } else {
+                                    btnSubmit.style.display = 'none';
+                                }
+                            });
+
+                        } else {
+                            document.getElementById('hide_sub_destino').value = data.sub_ubicacion;
+                            document.getElementById('msgDestino').style.display = 'none';
+                            document.getElementById('msgDestino').innerHTML = '';
+                            
+                            btnSubmit.style.display = 'block';
+                            btnSubmit.focus();
+                        }
+                        
+                    } else {
+                        const msgDest = document.getElementById('msgDestino');
+                        msgDest.innerText = data.msg;
+                        msgDest.style.display = 'block';
+                        msgDest.style.color = '#dc3545';
+                        inDestino.value = '';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('msgDestino').innerText = '❌ Error: La posición destino no existe o no está creada.';
+                    document.getElementById('msgDestino').style.display = 'block';
+                    inDestino.value = '';
+                });
+            }, 300); 
+        });
+
+        // 🔥 FUNCION PARA MARCAR Y DESMARCAR TODOS LOS PRODUCTOS 🔥
+        function toggleTodos(estado) {
+            const checkboxes = document.querySelectorAll('.chk-item-mover');
+            checkboxes.forEach(chk => {
+                chk.checked = estado;
+                const inputCant = document.getElementById('cant_mover_' + chk.value);
+                if(inputCant) {
+                    inputCant.disabled = !estado;
+                }
+            });
+        }
+
+        async function procesarEnvioFinal() {
+            const checkboxes = document.querySelectorAll('.chk-item-mover:checked');
+            
+            if(checkboxes.length === 0) {
+                alert('⚠️ No dejaste ningún producto tildado para mover. Seleccioná al menos uno.');
+                return;
+            }
+
+            const btnConfirmar = document.getElementById('btnConfirmarScanner');
+            btnConfirmar.innerText = '⏳ Moviendo...';
+            btnConfirmar.style.background = '#6c757d';
+            btnConfirmar.disabled = true;
+
+            const ubiDestino = document.getElementById('hide_rack').value;
+            const nivDestino = document.getElementById('hide_niv').value;
+            const posDestino = document.getElementById('hide_pos').value;
+            const subDestino = document.getElementById('hide_sub_destino').value || 'General';
+
+            for(let chk of checkboxes) {
+                const itemId = chk.value;
+                const cant = document.getElementById('cant_mover_' + itemId).value;
+
+                let formData = new FormData();
+                formData.append('cantidad_mover', cant);
+                formData.append('ubicacion_destino', ubiDestino);
+                formData.append('nivel_destino', nivDestino);
+                formData.append('posicion_destino', posDestino);
+                formData.append('sub_destino', subDestino); 
+
+                try {
+                    await fetch('/mover_item/' + itemId, {
+                        method: 'POST',
+                        body: formData
+                    });
+                } catch(error) {
+                    console.error("Error moviendo el ID " + itemId, error);
+                }
+            }
+
+            window.location.reload();
+        }
+    </script>
+
+    <script>
+        // Creamos la función destructora
+        function limpiarAlertas() {
+            let alertas = document.querySelectorAll('.flash-msg');
+            alertas.forEach(function(alerta) {
+                // Le damos el efecto de desvanecerse y subir
+                alerta.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                alerta.style.opacity = '0';
+                alerta.style.transform = 'translateY(-20px)'; 
+                
+                // A los 0.5s lo eliminamos del HTML
+                setTimeout(() => alerta.remove(), 500);
+            });
+        }
+
+        // No esperamos a nada, a los 4 segundos exactos disparamos la función
+        setTimeout(limpiarAlertas, 4000);
+    </script>
+
+    <script>
+    function renombrarRack(id, nombreActual, depositoActual) {
+        let nuevoNombre = prompt("Nombre para el rack (Ej: R73-1):", nombreActual);
+        
+        // Si no canceló y escribió algo
+        if (nuevoNombre !== null && nuevoNombre.trim() !== "") {
+            
+            // Preguntamos la carpeta
+            let nuevoDepo = prompt("¿A qué Depósito/Carpeta pertenece?", depositoActual);
+            
+            if (nuevoDepo !== null && nuevoDepo.trim() !== "") {
+                document.getElementById('input-renombrar-' + id).value = nuevoNombre.trim().toUpperCase();
+                document.getElementById('input-deposito-' + id).value = nuevoDepo.trim().toUpperCase();
+                document.getElementById('form-renombrar-' + id).submit();
+            }
+        }
+    }
+    </script>
+
+    <style>
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+
+    <script>
+        function abrirConfig() { document.getElementById('modalConfig').style.display = "block"; }
+        function cerrarConfig() { document.getElementById('modalConfig').style.display = "none"; }
+        
+        // Cerrar si hace clic afuera del cuadrito blanco
+        window.onclick = function(event) {
+            let modal = document.getElementById('modalConfig');
+            if (event.target == modal) { cerrarConfig(); }
+        }
+    </script>
+
+    <script>
+        function toggleConfig() {
+            document.getElementById("miDesplegable").classList.toggle("show");
+        }
+
+        function toggleModulos() {
+            document.getElementById("menuModulos").classList.toggle("show-flex");
+        }
+
+        // ==========================================
+        // CIERRE AUTOMÁTICO DE MENÚS (MODO UNIVERSAL)
+        // ==========================================
+        window.addEventListener('click', function(event) {
+            const menuModulos = document.getElementById("menuModulos");
+            const menuAjustes = document.getElementById("miDesplegable");
+
+            // Lógica para el Menú de Operaciones
+            if (menuModulos && menuModulos.classList.contains('show-flex')) {
+                // Si clickeo afuera O si clickeo un LINK dentro del menú
+                if (!event.target.closest('.modulos-dropdown') || event.target.closest('a')) {
+                    menuModulos.classList.remove('show-flex');
+                }
+            }
+
+            // Lógica para el Menú de Ajustes (Config)
+            if (menuAjustes && menuAjustes.classList.contains('show')) {
+                // Si clickeo afuera O si clickeo el botón de Guardar
+                if (!event.target.closest('.config-dropdown') || event.target.matches('button[type="submit"]')) {
+                    menuAjustes.classList.remove('show');
+                }
+            }
+        });
+    </script>
+
+    
+
+    <script>
+        let html5QrCodeReubicar = null;
+
+        // 🔥 FUNCION MODIFICADA PARA SABER A QUÉ INPUT IR 🔥
+        async function abrirCamaraReubicar(target) {
+            targetActual = target; // 'origen' o 'destino'
+            const contenedor = document.getElementById('contenedor-lector-reubicar');
+        
+            if (html5QrCodeReubicar) {
+                await cerrarCamaraReubicar();
+            }
+
+            contenedor.style.display = 'block';
+            html5QrCodeReubicar = new Html5Qrcode("lector-reubicar");
+        
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 250, height: 150 }
+            };
+
+            html5QrCodeReubicar.start(
+                { facingMode: "environment" }, 
+                config, 
+                (codigo) => {
+                    const codLimpio = codigo.toUpperCase().trim();
+                    if (navigator.vibrate) navigator.vibrate(100);
+                
+                    const inputOri = document.getElementById('scanOrigen');
+                    const inputDes = document.getElementById('scanDestino');
+
+                    // Llenamos el input correcto basado en el botón que apretó
+                    if (targetActual === 'origen' && !inputOri.disabled) {
+                        inputOri.value = codLimpio;
+                        tiempoInicioOrigen = new Date().getTime(); 
+                        cerrarCamaraReubicar();
+                        inputOri.dispatchEvent(new Event('keyup')); 
+                    } else if (targetActual === 'destino' && !inputDes.disabled) {
+                        inputDes.value = codLimpio;
+                        tiempoInicioDestino = new Date().getTime(); 
+                        cerrarCamaraReubicar();
+                        inputDes.dispatchEvent(new Event('keyup'));
+                    }
+                }
+            ).catch(err => {
+                console.error("Error de cámara:", err);
+                alert("No se pudo iniciar la cámara: " + err);
+                contenedor.style.display = 'none';
+            });
+        }
+
+        async function cerrarCamaraReubicar() {
+            const contenedor = document.getElementById('contenedor-lector-reubicar');
+            if (html5QrCodeReubicar) {
+                try {
+                    await html5QrCodeReubicar.stop();
+                } catch (e) {
+                    console.log("Error al detener cámara:", e);
+                }
+                html5QrCodeReubicar = null;
+            }
+            contenedor.style.display = 'none';
+        }
+    </script>
+
+    <div id="alerta-fabrica" style="display: none; position: fixed; bottom: 30px; left: 30px; background: #16a34a; color: white; padding: 15px 25px; border-radius: 50px; font-weight: bold; box-shadow: 0 10px 25px rgba(22, 163, 74, 0.4); z-index: 9999; cursor: pointer; animation: bounce 2s infinite; border: 3px solid #bbf7d0; align-items: center; gap: 10px;">
+        <span style="font-size: 24px;">🏭</span> 
+        <span id="alerta-fabrica-texto" style="font-size: 16px;">0 Pedidos Listos!</span>
+    </div>
+
+    <style>
+        /* Animación para que el botón salte sutilmente llamando la atención */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+
+    <script>
+        function chequearFabrica() {
+            // Le preguntamos en silencio al micro-radar de Python
+            fetch("{{ url_for('alertas_fabrica') }}")
+                .then(response => response.json())
+                .then(data => {
+                    const alerta = document.getElementById('alerta-fabrica');
+                    const texto = document.getElementById('alerta-fabrica-texto');
+                    
+                    // Si Fábrica terminó algo, mostramos el cartel saltando
+                    if (data && data.listos > 0) {
+                        texto.innerText = `¡${data.listos} Pedido(s) Listo(s)!`;
+                        alerta.style.display = 'flex';
+                        
+                        // Si le hacen clic, los mandamos a buscarlo al Historial
+                        alerta.onclick = () => {
+                            window.location.href = "{{ url_for('ver_picking') }}";
+                        };
+                    } else {
+                        // Si no hay nada, o si ya lo retiraron, lo ocultamos
+                        alerta.style.display = 'none';
+                    }
+                })
+                .catch(err => console.error('Error revisando fábrica:', err));
+        }
+
+        // ⚡ Busca novedades cada 3 segundos (3000 milisegundos)
+        setInterval(chequearFabrica, 3000);
+        // Lo ejecutamos apenas abre la página también
+        chequearFabrica();
+    </script>
+
+</body>
+</html>

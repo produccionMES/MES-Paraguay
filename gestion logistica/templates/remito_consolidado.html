@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Remito {{ nro_remito }}</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; padding: 40px; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+        .title { font-size: 24px; font-weight: bold; margin: 0; }
+        .subtitle { font-size: 14px; color: #666; margin: 5px 0 0 0; }
+        .info-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 30px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f1f3f5; text-transform: uppercase; font-size: 12px; color: #495057; }
+        td { font-size: 14px; }
+        
+        .firma-box { margin-top: 50px; display: flex; justify-content: space-around; text-align: center; }
+        .linea-firma { border-top: 1px solid #333; width: 250px; margin-top: 40px; padding-top: 10px; font-weight: bold; }
+        
+        @media print {
+            .btn-imprimir { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <button onclick="window.print()" class="btn-imprimir" style="background: #0d6efd; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; float: right; margin-bottom: 20px;">
+        🖨️ Imprimir Remito
+    </button>
+
+    <div class="header">
+        <div>
+            <h1 class="title">WMS LOGÍSTICA</h1>
+            <p class="subtitle">Documento de Transferencia Interna</p>
+        </div>
+        <div style="text-align: right;">
+            <h2 style="margin: 0; font-size: 28px; color: #0d6efd;">{{ nro_remito }}</h2>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <strong>Fecha y Hora de Emisión:</strong> {{ fecha.strftime('%d/%m/%Y %H:%M') }} hs<br><br>
+        <strong>Origen:</strong> Planta de Producción<br>
+        <strong>Destino:</strong> Centro de Distribución (Logística)<br>
+        <strong>Autorizado por:</strong> {{ usuario|upper }}
+    </div>
+
+    <h3>📦 Detalle de Mercadería</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 15%;">SKU</th>
+                <th style="width: 50%;">Descripción del Producto</th>
+                <th style="width: 20%; text-align: center;">Estado Calidad</th>
+                <th style="width: 15%; text-align: center;">Cantidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set total = namespace(unidades=0) %}
+            {% for t in transferencias %}
+            <tr>
+                <td style="font-weight: bold;">{{ t.sku }}</td>
+                <td>{{ t.descripcion }}</td>
+                <td style="text-align: center;">APTO</td>
+                <td style="text-align: center; font-size: 18px; font-weight: bold;">{{ t.cantidad }}</td>
+                {% set total.unidades = total.unidades + t.cantidad %}
+            </tr>
+            {% endfor %}
+            <tr style="background-color: #e9ecef;">
+                <td colspan="3" style="text-align: right; font-weight: bold;">TOTAL UNIDADES:</td>
+                <td style="text-align: center; font-weight: bold; font-size: 20px; color: #0d6efd;">{{ total.unidades }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="firma-box">
+        <div>
+            <div class="linea-firma">Firma Entrega (Producción)</div>
+        </div>
+        <div>
+            <div class="linea-firma">Firma Recepción (Logística)</div>
+        </div>
+    </div>
+
+</body>
+</html>

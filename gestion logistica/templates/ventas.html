@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis de Ventas</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #334155; padding-left: 75px; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .nav-buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .btn-nav { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.2s; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .btn-nav:hover { background: #2563eb; }
+
+        /* 🔥 BARRA LATERAL 🔥 */
+        .sidebar-años { position: fixed; left: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 1000; }
+        .año-tab { background: #1e293b; color: white; padding: 12px 15px 12px 10px; border-radius: 0 8px 8px 0; text-decoration: none; font-weight: bold; font-size: 14px; transition: 0.3s; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); border-left: 4px solid transparent; }
+        .año-tab:hover { padding-left: 20px; background: #3b82f6; }
+        .año-tab.active { background: #3b82f6; border-left-color: #f59e0b; padding-left: 20px; }
+        .tab-todo { background: #0f172a; border-left: 4px solid #8b5cf6; font-size: 18px; text-align: center; }
+
+        /* KPIs */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .kpi-card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; position: relative; overflow: hidden; }
+        .kpi-card::before { content: ""; position: absolute; top: 0; left: 0; width: 5px; height: 100%; background: #3b82f6; }
+        .kpi-title { font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; margin: 0 0 10px 0; letter-spacing: 1px; }
+        .kpi-value { font-size: 32px; font-weight: 900; color: #0f172a; margin: 0; }
+        .kpi-green::before { background: #10b981; }
+        .kpi-purple::before { background: #8b5cf6; }
+        .kpi-orange::before { background: #f59e0b; }
+
+        /* Paneles Upload */
+        .upload-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .upload-panel { background: white; padding: 20px; border-radius: 16px; border: 2px dashed #cbd5e1; display: flex; flex-direction: column; justify-content: space-between; gap: 15px; }
+        .upload-info h4 { margin: 0 0 5px 0; color: #0f172a; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .upload-info p { margin: 0; font-size: 12px; color: #64748b; line-height: 1.4; }
+
+        /* Layout */
+        .main-layout { display: grid; grid-template-columns: 1fr 320px 320px; gap: 20px; align-items: start; }
+        .table-container { background: white; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid #e2e8f0; display: flex; flex-direction: column;}
+        .filtros-box { padding: 15px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;}
+        .input-filtro { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; font-size: 13px; flex: 1; min-width: 120px;}
+        .rango-fechas { display: flex; align-items: center; gap: 5px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 2px 5px;}
+        .rango-fechas input { border: none; font-size: 13px; outline: none; background: transparent;}
+        .rango-fechas span { font-size: 12px; color: #64748b; font-weight: bold;}
+        .btn-filtrar { background: #0f172a; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; white-space: nowrap;}
+        .btn-filtrar:hover { background: #334155; }
+        .btn-limpiar { background: #cbd5e1; color: #334155; text-decoration: none; padding: 9px 15px; border-radius: 6px; font-weight: bold; font-size: 13px; transition: 0.2s; text-align: center; white-space: nowrap;}
+        .btn-limpiar:hover { background: #94a3b8; color: white;}
+
+        /* 🔥 SCROLL HORIZONTAL DE TABLA 🔥 */
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; min-width: 750px; } 
+        th { background: #f8fafc; padding: 15px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        
+        .pagination { padding: 15px; background: white; display: flex; justify-content: center; gap: 5px; border-top: 1px solid #e2e8f0; flex-wrap: wrap;}
+        .page-link { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; text-decoration: none; color: #0f172a; font-weight: bold; font-size: 13px; transition: 0.2s; background: white; cursor: pointer;}
+        .page-link:hover { background: #f1f5f9; }
+        .page-link.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+
+        /* Side Cards */
+        .side-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 10px rgba(0,0,0,0.03); display: flex; flex-direction: column; }
+        .ranking-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+        .badge-qty { background: #3b82f6; color: white; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; }
+        .tabs-header { display: flex; background: #f1f5f9; border-radius: 8px; padding: 4px; margin-bottom: 15px; }
+        .tab-btn { flex: 1; text-align: center; padding: 10px; border: none; background: transparent; color: #64748b; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.3s; font-size: 12px; text-transform: uppercase; }
+        .tab-btn.active { background: #3b82f6; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .scroll-list { max-height: 450px; overflow-y: auto; padding-right: 10px; flex-grow: 1; }
+        .scroll-list::-webkit-scrollbar { width: 6px; }
+        .scroll-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        
+        .stock-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 100%; }
+        .stock-table th { padding: 8px; border-bottom: 2px solid #cbd5e1; background: white; position: sticky; top: 0; z-index: 10;}
+        .stock-table td { padding: 10px 8px; }
+        
+        .chart-wrapper { height: 250px; width: 100%; position: relative; }
+
+        /* 🔥 ADAPTACIÓN PARA CELULARES CORREGIDA 🔥 */
+        @media (max-width: 1200px) { .main-layout { grid-template-columns: 1fr 350px; } .stock-card { grid-column: 2; } }
+        
+        @media (max-width: 900px) { 
+            body { padding: 15px !important; } /* Resetea el margen de desktop */
+            
+            /* Filtros de Años que empujan hacia abajo (Sin superponer) */
+            .sidebar-años { 
+                position: static; 
+                flex-direction: row; 
+                transform: none; 
+                width: 100%; 
+                margin-bottom: 20px; 
+                flex-wrap: wrap; 
+                justify-content: center; 
+            }
+            .año-tab { 
+                border-radius: 8px; 
+                border-left: none; 
+                border-bottom: 4px solid transparent; 
+                padding: 10px 15px !important; 
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            } 
+            .año-tab.active { border-bottom-color: #f59e0b; }
+            
+            /* Navbar y Botones en Grilla Inteligente */
+            .navbar { 
+                flex-direction: column; 
+                align-items: center; 
+                text-align: center; 
+                gap: 15px; 
+                padding: 20px;
+            }
+            .nav-buttons { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; /* Dos por fila */
+                gap: 10px; 
+                width: 100%; 
+            }
+            .btn-nav { justify-content: center; width: 100%; box-sizing: border-box; text-align: center;}
+            /* Si es número impar, el último botón ocupa todo el ancho abajo */
+            .nav-buttons > a:last-child:nth-child(odd) { grid-column: 1 / -1; }
+            
+            .upload-container { grid-template-columns: 1fr; } 
+            .main-layout { grid-template-columns: 1fr; } 
+            .stock-card { grid-column: 1; }
+            
+            .filtros-box { flex-direction: column; align-items: stretch; }
+            .input-filtro, .rango-fechas { width: 100%; box-sizing: border-box; justify-content: space-between;}
+            .btn-filtrar, .btn-limpiar { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-años">
+        <div style="font-size: 9px; color: #64748b; font-weight: bold; text-align: center; margin-bottom: 5px; opacity: 0.7; width: 100%;">FILTROS</div>
+        <a href="{{ url_for('ventas', anio_filtro=0, q_sku=q_sku, q_desc=q_desc) }}" class="año-tab tab-todo {% if anio_ver == 0 %}active{% endif %}" title="Ver Historial Completo">∞</a>
+        {% for a in lista_años %}
+            <a href="{{ url_for('ventas', anio_filtro=a, q_sku=q_sku, q_desc=q_desc) }}" class="año-tab {% if a == anio_ver %}active{% endif %}">{{ a }}</a>
+        {% endfor %}
+    </div>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">📊 Análisis de Ventas</h2>
+        <div class="nav-buttons">
+            <a href="{{ url_for('nomina_ventas') }}" class="btn-nav" style="background: #8b5cf6;">📖 Ver Nómina</a>
+            {% if current_user.rol in ['admin', 'jefe_ventas'] %}
+                <a href="{{ url_for('gestionar_usuarios', sector='ventas') }}" class="btn-nav" style="background: #475569;">👥 Equipo</a>
+            {% endif %}
+            <a href="{{ url_for('home') }}" class="btn-nav" style="background: #334155;">🏠 Inicio</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}
+        <div style="background-color: {% if category == 'error' %}#fef2f2{% else %}#f0fdf4{% endif %}; color: {% if category == 'error' %}#b91c1c{% else %}#15803d{% endif %}; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; border: 1px solid {% if category == 'error' %}#fca5a5{% else %}#86efac{% endif %};">{{ message }}</div>
+    {% endfor %}{% endif %}{% endwith %}
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <h3 class="kpi-title">Unidades de Hoy</h3>
+            <p class="kpi-value">{{ stats.hoy }} <span style="font-size: 14px; font-weight: normal;">u.</span></p>
+        </div>
+        <div class="kpi-card kpi-purple">
+            <h3 class="kpi-title">Esta Semana</h3>
+            <p class="kpi-value">{{ stats.semana }} <span style="font-size: 14px; font-weight: normal;">u.</span></p>
+        </div>
+        <div class="kpi-card kpi-green">
+            <h3 class="kpi-title">Este Mes</h3>
+            <p class="kpi-value">{{ stats.mes }} <span style="font-size: 14px; font-weight: normal;">u.</span></p>
+        </div>
+        <div class="kpi-card kpi-orange">
+            <h3 class="kpi-title">{% if anio_ver == 0 %}Total Histórico{% else %}Total {{ anio_ver }}{% endif %}</h3>
+            <p class="kpi-value">{{ stats.anio }} <span style="font-size: 14px; font-weight: normal;">u.</span></p>
+        </div>
+    </div>
+
+    <div class="upload-container" style="grid-template-columns: 1fr;"> <div class="upload-panel">
+            <div class="upload-info">
+                <h4>🚀 Subir Ventas del Día</h4>
+                <p>Cargá el Excel diario. El sistema reconocerá los productos automáticamente usando la Nómina Central de Logística.</p>
+                <a href="{{ url_for('descargar_plantilla_ventas') }}" style="font-size: 11px; color: #3b82f6; font-weight: bold; text-decoration: none;">⬇️ Descargar Plantilla Ventas</a>
+            </div>
+            <form action="{{ url_for('importar_ventas') }}" method="POST" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 10px;">
+                <input type="file" name="archivo_ventas" accept=".xlsx, .xls" required style="font-size: 12px;">
+                <button type="submit" class="btn-nav" style="width: 100%; justify-content: center;">🚀 Procesar Ventas</button>
+            </form>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
+        {% if es_anio_actual %}
+        <div style="background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; overflow-x: auto;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #475569; display: flex; justify-content: space-between; align-items: center;">
+                <span>📈 Evolución 7 Días</span><span style="background: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">CORTO PLAZO</span>
+            </h3>
+            <div class="chart-wrapper"><canvas id="chartSemana"></canvas></div>
+        </div>
+        {% endif %}
+
+        <div style="background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; overflow-x: auto; {% if not es_anio_actual %}grid-column: 1 / -1;{% endif %}">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #475569; display: flex; justify-content: space-between; align-items: center;">
+                <span>📅 Tendencia Mensual ({% if anio_ver == 0 %}Histórica{% else %}{{ anio_ver }}{% endif %})</span><span style="background: #f3e8ff; color: #7e22ce; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">LARGO PLAZO</span>
+            </h3>
+            <div class="chart-wrapper"><canvas id="chartAnio"></canvas></div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        
+        <div class="table-container">
+            <form id="filtro-ventas-form" action="{{ url_for('ventas') }}" method="GET" class="filtros-box">
+                <input type="text" name="q_sku" class="input-filtro" placeholder="Buscar SKU..." value="{{ q_sku }}">
+                <input type="text" name="q_desc" class="input-filtro" placeholder="Buscar Descripción..." value="{{ q_desc }}">
+                
+                <div class="rango-fechas">
+                    <span>Desde</span><input type="date" name="q_fecha_desde" class="input-filtro" style="padding:4px;" value="{{ q_fecha_desde }}">
+                </div>
+                <div class="rango-fechas">
+                    <span>Hasta</span><input type="date" name="q_fecha_hasta" class="input-filtro" style="padding:4px;" value="{{ q_fecha_hasta }}">
+                </div>
+                
+                <input type="hidden" name="anio_filtro" value="{{ anio_ver }}">
+                <button type="submit" class="btn-filtrar">🔍 Filtrar</button>
+                <a href="{{ url_for('ventas', anio_filtro=anio_ver) }}" class="btn-limpiar">✖ Limpiar</a>
+                
+                <button type="button" onclick="exportarExcelVentas()" style="background: #10b981; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                    📥 Exportar a Excel
+                </button>
+            </form>
+
+            <div class="table-responsive">
+                <table>
+                    <thead><tr><th>Fecha</th><th>Canal</th><th>SKU</th><th>Descripción</th><th style="text-align: center;">Cant.</th></tr></thead>
+                    <tbody id="tabla-ventas-body">
+                        {% for item in movimientos.items %}
+                        <tr>
+                            <td style="color: #64748b; font-size: 13px; white-space: nowrap;">{{ item.venta.fecha_venta.strftime('%d/%m/%Y') }}</td>
+                            <td><span style="background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">{{ item.venta.canal }}</span></td>
+                            <td style="font-weight: 800; color: #1e293b; white-space: nowrap;">{{ item.sku }}</td>
+                            <td style="font-size: 13px; color: #475569;">{{ item.descripcion }}</td>
+                            <td style="text-align: center;"><span style="background: #f1f5f9; padding: 4px 10px; border-radius: 6px; font-weight: 900;">{{ item.cantidad }}</span></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" style="text-align: center; padding: 30px; color: #94a3b8;">No se encontraron ventas para esta búsqueda.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if movimientos.pages > 1 %}
+            <div id="paginacion-container" style="padding: 15px; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-content: center;">
+                <div class="pagination">
+                    {% if movimientos.has_prev %}
+                        <a href="{{ url_for('ventas', q_sku=q_sku, q_desc=q_desc, q_fecha_desde=q_fecha_desde, q_fecha_hasta=q_fecha_hasta, anio_filtro=anio_ver, page=movimientos.prev_num) }}" class="page-link">◀ Anterior</a>
+                    {% endif %}
+                    {% for page_num in movimientos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            <a href="{{ url_for('ventas', q_sku=q_sku, q_desc=q_desc, q_fecha_desde=q_fecha_desde, q_fecha_hasta=q_fecha_hasta, anio_filtro=anio_ver, page=page_num) }}" class="page-link {% if movimientos.page == page_num %}active{% endif %}">{{ page_num }}</a>
+                        {% else %}
+                            <span class="page-link" style="border:none; pointer-events: none;">...</span>
+                        {% endif %}
+                    {% endfor %}
+                    {% if movimientos.has_next %}
+                        <a href="{{ url_for('ventas', q_sku=q_sku, q_desc=q_desc, q_fecha_desde=q_fecha_desde, q_fecha_hasta=q_fecha_hasta, anio_filtro=anio_ver, page=movimientos.next_num) }}" class="page-link">Siguiente ▶</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="side-card">
+            <div class="tabs-header">
+                {% if es_anio_actual %}
+                    <button class="tab-btn active" onclick="showTab('semana', this)">🏆 Top 20 Semanal</button>
+                    <button class="tab-btn" onclick="showTab('mes', this)">🏆 Top 20 {{ anio_ver }}</button>
+                {% else %}
+                    <button class="tab-btn active" onclick="showTab('mes', this)">🏆 Top 20 {% if anio_ver == 0 %}Histórico{% else %}{{ anio_ver }}{% endif %}</button>
+                {% endif %}
+            </div>
+
+            {% if es_anio_actual %}
+            <div id="tab-semana" class="tab-content active">
+                <div class="scroll-list">
+                    {% for item in ranking_semana %}
+                    <div class="ranking-item">
+                        <span style="font-size: 13px; font-weight: 600; color: #475569;"><span style="color: #94a3b8; margin-right: 5px;">{{ loop.index }}.</span>{{ item.sku }}</span>
+                        <span class="badge-qty">{{ item.total_cant }} u.</span>
+                    </div>
+                    {% else %}
+                    <p style="text-align: center; color: #94a3b8; font-size: 13px; padding: 20px;">Sin ventas esta semana.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div id="tab-mes" class="tab-content {% if not es_anio_actual %}active{% endif %}">
+                <div class="scroll-list">
+                    {% for item in ranking_mes %}
+                    <div class="ranking-item">
+                        <span style="font-size: 13px; font-weight: 600; color: #475569;"><span style="color: #94a3b8; margin-right: 5px;">{{ loop.index }}.</span>{{ item.sku }}</span>
+                        <span class="badge-qty">{{ item.total_cant }} u.</span>
+                    </div>
+                    {% else %}
+                    <p style="text-align: center; color: #94a3b8; font-size: 13px; padding: 20px;">Sin ventas.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="side-card stock-card" style="border-top: 5px solid #0ea5e9;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; color: #0f172a; font-size: 16px;">📦 Stock Real (Depósito)</h3>
+            </div>
+            <input type="text" id="buscadorStock" oninput="filtrarStockVivo()" placeholder="🔍 Filtrar código o medida..." style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; box-sizing: border-box; font-size: 13px; font-weight: bold;">
+            <div class="scroll-list">
+                <table class="stock-table">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">SKU</th>
+                            <th style="text-align: right; cursor: pointer; user-select: none;" onclick="ordenarStockVivo()" title="Click para ordenar Menor/Mayor">
+                                Disp. <span id="icono-orden-stock">⇅</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in stock_disponible %}
+                            <tr class="fila-stock-vivo" data-busqueda="{{ s.sku }} {{ s.descripcion | upper }}" style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="font-weight: bold; color: #334155;">
+                                    {{ s.sku }}
+                                    <div style="font-size: 10px; color: #94a3b8; font-weight: normal; margin-top: 2px;">{{ s.descripcion[:30] }}...</div>
+                                </td>
+                                <td style="text-align: right;">
+                                    <span style="font-weight: 900; font-size: 16px; color: {% if s.total_stock <= 0 %}#dc2626{% elif s.total_stock <= 5 %}#f59e0b{% else %}#16a34a{% endif %};">
+                                        {{ s.total_stock }}
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function exportarExcelVentas() {
+            const form = document.getElementById('filtro-ventas-form');
+            const oldAction = form.action; 
+            
+            form.action = "{{ url_for('exportar_ventas') }}";
+            form.submit();
+            
+            setTimeout(() => {
+                form.action = oldAction;
+            }, 500);
+        }
+
+        function showTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        let timeoutStock;
+        function filtrarStockVivo() {
+            clearTimeout(timeoutStock); 
+            timeoutStock = setTimeout(() => {
+                let input = document.getElementById("buscadorStock").value.toUpperCase();
+                let filas = document.querySelectorAll(".fila-stock-vivo");
+                filas.forEach(fila => {
+                    let textoBusqueda = fila.getAttribute("data-busqueda");
+                    if (textoBusqueda.includes(input)) fila.style.display = "";
+                    else fila.style.display = "none";
+                });
+            }, 150);
+        }
+
+        let ordenAsc_Stock = true;
+        function ordenarStockVivo() {
+            const tablaBody = document.querySelector('.stock-table tbody');
+            const filas = Array.from(tablaBody.querySelectorAll('.fila-stock-vivo'));
+            const icono = document.getElementById('icono-orden-stock');
+            filas.sort((a, b) => {
+                const stockA = parseInt(a.querySelector('td:nth-child(2) span').innerText) || 0;
+                const stockB = parseInt(b.querySelector('td:nth-child(2) span').innerText) || 0;
+                return ordenAsc_Stock ? stockA - stockB : stockB - stockA;
+            });
+            filas.forEach(fila => tablaBody.appendChild(fila));
+            icono.innerText = ordenAsc_Stock ? '↑' : '↓';
+            ordenAsc_Stock = !ordenAsc_Stock;
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const dataFlask = {{ graficos_data | tojson | safe if graficos_data else 'null' }};
+            if (dataFlask) {
+                const chartOptions = {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { grid: { display: false } }, y: { grid: { color: '#f1f5f9' }, beginAtZero: true } }
+                };
+                const ctxSemana = document.getElementById('chartSemana');
+                if (ctxSemana) {
+                    new Chart(ctxSemana, {
+                        type: 'line',
+                        data: {
+                            labels: dataFlask.labels_7d,
+                            datasets: [{ data: dataFlask.datos_7d, borderColor: '#0ea5e9', backgroundColor: 'rgba(14, 165, 233, 0.1)', fill: true, tension: 0.4 }]
+                        },
+                        options: chartOptions
+                    });
+                }
+                new Chart(document.getElementById('chartAnio'), {
+                    type: 'line',
+                    data: {
+                        labels: dataFlask.labels_anio,
+                        datasets: [{ data: dataFlask.datos_anio, borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }]
+                    },
+                    options: chartOptions
+                });
+            }
+        });
+    </script>
+</body>
+</html>

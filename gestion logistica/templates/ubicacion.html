@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle de Posición</title>
+    <style>
+        /* 🔥 ANTI-SCROLL FANTASMA 🔥 */
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        .contenedor { max-width: 1350px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; margin-bottom: 20px; }
+        .flash-msg { padding: 15px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+        .btn-volver { text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; color: white; transition: 0.3s; }
+        .bg-logistica { background: #6c757d; }
+        .bg-posventa { background: #6f42c1; }
+        .bg-materias { background: #059669; } 
+        
+        .formulario { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #dee2e6; }
+        .btn-guardar { background: #198754; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; height: 42px; }
+        
+        /* 🔥 CÁRCEL DE SCROLL PARA LA TABLA 🔥 */
+        .table-responsive {
+            display: block;
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; border-radius: 8px; overflow: hidden; min-width: 800px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #f8f9fa; color: #495057; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+
+        .col-gestion { display: flex; flex-direction: column; gap: 12px; padding: 5px; }
+        .accion-box { display: grid; grid-template-columns: 75px 1fr auto; gap: 8px; align-items: center; padding: 10px; background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; transition: 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .accion-box:hover { border-color: #ccc; background: #fafafa; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        .accion-titulo { grid-column: 1 / -1; font-size: 10px; font-weight: 800; color: #999; text-transform: uppercase; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+        .input-ajuste { height: 34px; padding: 0 10px; border: 1px solid #ced4da; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+        .btn-gestion { height: 34px; padding: 0 15px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; border: none; white-space: nowrap; transition: 0.2s; }
+        .btn-gestion:active { transform: scale(0.96); }
+
+        .badge-sub { background: #0d6efd; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        .badge-apto { color: #198754; font-weight: bold; background: #d1e7dd; padding: 4px 8px; border-radius: 4px;}
+        .badge-no-apto { color: #842029; font-weight: bold; background: #f8d7da; padding: 4px 8px; border-radius: 4px;}
+        
+        #buscador-producto { width: 100%; border: 2px solid #0d6efd; font-weight: 500; padding-right: 35px; cursor: pointer; }
+        #sugerencias-box { position: absolute; width: 100%; background: white; border: 1px solid #ddd; z-index: 1000; display: none; border-radius: 0 0 8px 8px; box-shadow: 0 8px 16px rgba(0,0,0,0.15); max-height: 300px; overflow-y: auto; }
+        .sugerencia-item { padding: 12px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; transition: 0.2s; }
+        .sugerencia-item:hover { background-color: #f1f8ff; color: #0d6efd; }
+
+        /* --- BURBUJA FLOTANTE --- */
+        .fab-scanner { 
+            position: fixed !important; 
+            bottom: 30px; 
+            right: 30px; 
+            width: 65px; 
+            height: 65px; 
+            background-color: #0d6efd; 
+            color: white; 
+            border-radius: 50%; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            font-size: 28px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); 
+            text-decoration: none; 
+            z-index: 99999 !important; 
+        }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(3px);}
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="header">
+        <div>
+            <h1 style="margin: 0 0 5px 0; font-size: 26px; color: #212529;">📍 {{ ubicacion.rack.nombre }}</h1>
+            <h2 style="margin: 0; font-size: 18px; color: #6c757d; font-weight: 500;">
+                Ubicación: {{ ubicacion.codigo_unico.replace('PV-', '').replace('MP-', '').split('-ID')[0] }}
+            </h2>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center;">
+            {% if ubicacion.rack.sector == 'materias_primas' %}
+                <a href="{{ url_for('materias_primas') }}" class="btn-volver bg-materias">← Volver a Insumos</a>
+            {% elif ubicacion.rack.sector == 'posventa' %}
+                <a href="{{ url_for('posventa') }}" class="btn-volver bg-posventa">← Volver a Posventa</a>
+            {% else %}
+                <a href="{{ url_for('logistica') }}" class="btn-volver bg-logistica">← Volver a Logística</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if ubicacion.rack.nombre not in ['🟢 ZONA VERDE (REPARADOS)', '🟡 ZONA AMARILLA (OUTLET)'] %}
+        
+        <div class="formulario" style="border-color: #0d6efd; background-color: #f1f8ff;">
+            <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #0d6efd;">📦 Crear Nueva Sub-División (Caja/Lote)</h3>
+            <form action="{{ url_for('crear_subdivision', ubicacion_id=ubicacion.id) }}" method="POST" style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" name="nombre_subdivision" dir="ltr" class="input-ajuste" style="flex-grow: 1;" placeholder="Ej: Lote 45, Caja Azul, Gaveta 3..." required>
+                <button type="submit" class="btn-guardar" style="background: #0d6efd; display: flex; align-items: center; gap: 8px; padding: 0 25px; height: 34px; white-space: nowrap;">
+                    <span>+</span> Crear Caja
+                </button>
+            </form>
+        </div>
+
+        <div class="formulario">
+            <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #495057;">📥 Ingresar Mercadería a {{ ubicacion.rack.sector|upper|replace('_', ' ') }}</h3>
+            <form action="{{ url_for('agregar_item', ubicacion_id=ubicacion.id) }}" method="POST" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;">
+                <div style="flex-grow: 1; position: relative;">
+                    <input type="text" id="buscador-producto" class="input-ajuste" style="width: 100%;" placeholder="🔍 Clic para ver nómina..." autocomplete="off">
+                    <input type="hidden" name="producto_id" id="producto_id_real" required>
+                    <div id="sugerencias-box"></div>
+                </div>
+                <input type="number" name="cantidad" placeholder="Cant." required style="width: 75px;" min="1" class="input-ajuste">
+                
+                <input type="text" name="lote" dir="ltr" placeholder="Nº Lote (Opc)" class="input-ajuste" style="width: 100px;">
+                <input type="date" name="fecha_vencimiento" class="input-ajuste" style="width: 120px;" title="Vencimiento">
+                
+                <select name="sub_ubicacion" class="input-ajuste" style="width: 120px; background-color: #fff; cursor: pointer;">
+                    {% for sub in subdivisiones %}
+                        <option value="{{ sub }}">{{ sub }}</option>
+                    {% endfor %}
+                </select>
+
+                <input type="text" name="observaciones" dir="ltr" placeholder="Detalle" class="input-ajuste" style="flex-grow: 1; min-width: 150px;">
+                <select name="estado_calidad" class="input-ajuste" style="background-color: #f8f9fa; font-weight: bold; width: 140px; height: 34px;">
+                    <option value="apto" selected>✅ APTO</option>
+                    <option value="outlet">💰 OUTLET</option>
+                    <option value="no_apto">⚠️ NO APTO</option>
+                </select>
+                <button type="submit" class="btn-guardar" style="height: 34px;">+ Guardar</button>
+            </form>
+        </div>
+    {% endif %}
+
+    <h3 style="color: #495057; font-size: 18px; margin-bottom: 15px;">📋 Contenido de la posición</h3>
+
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    {% if ubicacion.rack.sector == 'posventa' %}
+                    <th style="width: 40px; text-align: center;">
+                        <input type="checkbox" id="select-all" onclick="toggleAll(this)" style="width: 16px; height: 16px; cursor: pointer;">
+                    </th>
+                    {% endif %}
+                    <th>LPN / Sub-div</th>
+                    <th>SKU / Producto</th>
+                    
+                    {% if ubicacion.rack.sector == 'posventa' %}
+                        <th style="text-align: center;">Tipo</th>
+                    {% endif %}
+                    
+                    <th>Lote / Venc.</th> <th>Modelo</th>
+                    <th>Identificación / Falla</th>
+                    <th style="text-align: center;">Estado</th>
+                    <th style="text-align: center;">Cant.</th>
+                    <th style="text-align: center;">Gestión</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr style="{% if item.producto_detalle.sku == 'SUBDIVISION_VACIA' %}background-color: #fcfcfc; color: #adb5bd;{% elif item.estado_calidad != 'apto' %}background-color: #fffaf0;{% endif %}">
+                    
+                    {% if ubicacion.rack.sector == 'posventa' %}
+                    <td style="text-align: center;">
+                        {% if item.cantidad > 0 and item.producto_detalle.sku != 'SUBDIVISION_VACIA' %}
+                            <input type="checkbox" name="items_seleccionados" value="{{ item.id }}" class="chk-item" onchange="actualizarBannerPosventa()" form="form-masivo-posventa" style="width: 16px; height: 16px; cursor: pointer;">
+                        {% endif %}
+                    </td>
+                    {% endif %}
+
+                    <td><span class="badge-sub" {% if item.producto_detalle.sku == 'SUBDIVISION_VACIA' %}style="background-color: #adb5bd;"{% endif %}>{{ item.sub_ubicacion or 'General' }}</span></td>
+                    
+                    {% if item.producto_detalle.sku == 'SUBDIVISION_VACIA' %}
+                        <td colspan="{% if ubicacion.rack.sector == 'posventa' %}7{% else %}5{% endif %}" style="text-align: center; font-style: italic; color: #adb5bd; font-size: 12px; letter-spacing: 1px;">
+                            [ POSICIÓN LIBRE ]
+                        </td>
+                    {% else %}
+                        <td><strong>{{ item.producto_detalle.sku }}</strong><br><small>{{ item.producto_detalle.descripcion }}</small></td>
+                        
+                        {% if ubicacion.rack.sector == 'posventa' %}
+                            <td style="text-align: center;">
+                                {% if item.producto_detalle.sector == 'repuestos' %}
+                                    <span style="background-color: #6f42c1; color: white; padding: 5px 10px; border-radius: 15px; font-size: 11px; font-weight: bold; text-transform: uppercase; display: inline-block; white-space: nowrap;">
+                                        🔧 Repuesto
+                                    </span>
+                                {% else %}
+                                    <span style="background-color: #0d6efd; color: white; padding: 5px 10px; border-radius: 15px; font-size: 11px; font-weight: bold; text-transform: uppercase; display: inline-block; white-space: nowrap;">
+                                        📦 Producto
+                                    </span>
+                                {% endif %}
+                            </td>
+                        {% endif %}
+                        
+                        <td style="font-size: 12px; color: #555;">
+                            <strong>L:</strong> {{ item.lote or '-' }}<br>
+                            <strong>V:</strong> {{ item.fecha_vencimiento or '-' }}
+                        </td>
+                        
+                        <td>{{ item.producto_detalle.modelo or '-' }}</td>
+                        <td style="font-style: italic; color: #555; font-size: 13px;">{{ item.observaciones }}</td>
+                        
+                        <td style="text-align: center;">
+                            {% if current_user.rol in ['admin', 'jefe_logistica', 'auditoria', 'jefe_auditoria'] and item.cantidad > 0 and item.producto_detalle.sku != 'SUBDIVISION_VACIA' %}
+                                <form action="{{ url_for('cambiar_estado_calidad', item_id=item.id) }}" method="POST" style="display:inline-block;">
+                                    <select name="nuevo_estado" 
+                                            onchange="if(confirm('¿Seguro que querés auditar y cambiar el estado de esta mercadería? Quedará registrado.')) this.form.submit(); else this.value='{{ item.estado_calidad }}';" 
+                                            style="padding: 4px 8px; font-size: 11px; border-radius: 4px; font-weight: bold; border: 1px solid #ced4da; outline: none; cursor: pointer;
+                                                   background: {% if item.estado_calidad == 'apto' %}#d1e7dd; color: #0f5132;
+                                                               {% elif item.estado_calidad == 'outlet' %}#cff4fc; color: #055160;
+                                                               {% else %}#f8d7da; color: #842029;{% endif %}">
+                                        <option value="apto" {% if item.estado_calidad == 'apto' %}selected{% endif %}>✅ APTO</option>
+                                        <option value="outlet" {% if item.estado_calidad == 'outlet' %}selected{% endif %}>💰 OUTLET</option>
+                                        <option value="no_apto" {% if item.estado_calidad == 'no_apto' %}selected{% endif %}>⚠️ NO APTO</option>
+                                    </select>
+                                </form>
+                            {% else %}
+                                {% if item.estado_calidad == 'apto' %}<span class="badge-apto">✅ APTO</span>
+                                {% elif item.estado_calidad == 'outlet' %}<span style="color: #055160; background: #cff4fc; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px;">💰 OUTLET</span>
+                                {% else %}<span class="badge-no-apto">⚠️ NO APTO</span>{% endif %}
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                    
+                    <td style="font-weight: bold; font-size: 18px; text-align: center; {% if item.producto_detalle.sku == 'SUBDIVISION_VACIA' %}color: #dee2e6;{% else %}color: #0d6efd;{% endif %}">
+                        {{ item.cantidad }}
+                    </td>
+                    
+                    <td style="width: 350px;">
+                        <div class="col-gestion">
+                        
+                        {% if item.producto_detalle.sku == 'SUBDIVISION_VACIA' %}
+                            <form action="{{ url_for('eliminar_item', item_id=item.id) }}" method="POST" 
+                                  class="accion-box" style="border-left: 3px solid #dc3545; background-color: #fff5f5; padding: 12px; display: block;" 
+                                  onsubmit="return confirm('¿Seguro que querés eliminar esta fila vacía?');">
+                                <div class="accion-titulo" style="color: #dc3545; margin-bottom: 8px;">🗑️ Limpieza</div>
+                                <button type="submit" class="btn-gestion" 
+                                        style="background: #dc3545; color: white; border: none; width: 100%; height: 34px;">
+                                    Eliminar Espacio
+                                </button>
+                            </form>
+
+                        {% else %}
+                            
+                            <form action="{{ url_for('ajustar_stock', item_id=item.id) }}" method="POST" class="accion-box">
+                                <div class="accion-titulo">⚖️ Ajustar Inventario</div>
+                                <input type="number" name="nueva_cantidad" placeholder="Cant" min="0" required class="input-ajuste">
+                                <input type="text" name="motivo" dir="ltr" placeholder="¿Motivo?" required class="input-ajuste">
+                                <button type="submit" class="btn-gestion" style="background: #6c757d; color: white;">Ajustar</button>
+                            </form>
+
+                            {% if ubicacion.rack.sector == 'posventa' %}
+
+                                {# 🔥 LA MAGIA: Ahora busca que el propósito sea TALLER, sin importar el nombre 🔥 #}
+                                {% if ubicacion.rack.proposito == 'TALLER' %}
+                                    <form action="{{ url_for('enviar_taller', item_id=item.id) }}" method="POST" 
+                                          class="accion-box" style="border-left: 3px solid #6f42c1; background-color: #f3f0ff; padding: 12px; display: block;">
+                                        <div class="accion-titulo" style="color: #6f42c1; margin-bottom: 8px;">🛠️ Enviar a Taller</div>
+                                        <div style="display: flex; gap: 8px; align-items: center;">
+                                            <input type="number" name="cantidad_taller" value="{{ item.cantidad }}" 
+                                                   max="{{ item.cantidad }}" min="1" required 
+                                                   class="input-ajuste" style="width: 70px; border: 2px solid #6f42c1;">
+                                            <button type="submit" class="btn-gestion" style="background: #6f42c1; color: white; flex-grow: 1; height: 34px;">
+                                                A Taller
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                {% elif ubicacion.rack.proposito in ['APTO', 'OUTLET'] %}
+                                    <form action="{{ url_for('despachar_item', item_id=item.id) }}" method="POST" 
+                                          class="accion-box" style="border-left: 3px solid #198754; background-color: #f0fff4; padding: 12px; display: block;" target="_blank">
+                                        <div class="accion-titulo" style="color: #198754; margin-bottom: 8px;">📦 Generar Remito (A Logística)</div>
+                                        <div style="display: flex; gap: 8px; align-items: center;">
+                                            <input type="number" name="cantidad_despacho" value="{{ item.cantidad }}" 
+                                                   max="{{ item.cantidad }}" min="1" required 
+                                                   class="input-ajuste" style="width: 70px; border: 2px solid #198754;">
+                                            <button type="submit" class="btn-gestion" style="background: #198754; color: white; flex-grow: 1; height: 34px;">
+                                                Despachar
+                                            </button>
+                                        </div>
+                                        <small style="display: block; margin-top: 5px; color: #157347; font-size: 10px;">Abre remito para imprimir en pestaña nueva.</small>
+                                    </form>
+                                {% endif %}    
+
+                                <button type="button" onclick="abrirModalTransferencia({{ item.id }}, {{ item.cantidad }}, '{{ item.producto_detalle.sku }}')" 
+                                        class="accion-box" style="border-left: 3px solid #ffc107; background-color: #fffbeb; padding: 12px; display: block; width: 100%; cursor: pointer; text-align: left; transition: 0.2s;">
+                                    <div class="accion-titulo" style="color: #d97706; margin-bottom: 0;">
+                                        🚀 Transferencia Directa a Zonas ➔
+                                    </div>
+                                </button>
+
+                            {% endif %}
+
+                        {% endif %}
+                        
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form id="form-masivo-posventa" action="{{ url_for('enviar_logistica_masiva_posventa') }}" method="POST" style="display: none;">
+    </form>
+
+    <div id="banner-masivo-pv" style="display: none; position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #198754; color: white; padding: 15px 30px; border-radius: 50px; font-weight: bold; box-shadow: 0 10px 25px rgba(25, 135, 84, 0.4); z-index: 9999; align-items: center; gap: 15px;">
+        <span id="txt-masivo-pv">0 seleccionados</span>
+        <button type="button" onclick="enviarMasivoPosventa()" style="background: white; color: #198754; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 900; cursor: pointer; transition: 0.2s;">
+            🚚 GENERAR REMITO ÚNICO
+        </button>
+    </div>
+
+</div>
+
+{% if ubicacion.rack.sector == 'posventa' %}
+<div id="modalTransferencia" class="modal-overlay">
+    <div style="background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); position: relative;">
+        <button type="button" onclick="document.getElementById('modalTransferencia').style.display='none'" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; float: right; font-weight: bold;">
+            X Cerrar
+        </button>
+        <h2 style="margin-top: 0; color: #d97706; display: flex; align-items: center; gap: 8px;">🚀 Transferir</h2>
+        
+        <p style="color: #6c757d; font-size: 13px; margin-bottom: 10px;">SKU Seleccionado:</p>
+        <div id="transf-sku" style="background: #f8f9fa; padding: 10px; border-radius: 6px; font-weight: bold; font-size: 16px; border: 1px solid #dee2e6; margin-bottom: 20px; text-align: center;"></div>
+        
+        <form id="formTransferencia" method="POST">
+            <label style="font-weight: bold; font-size: 14px; display: block; margin-bottom: 8px;">1. ¿Cuántas unidades querés mover?</label>
+            <input type="number" id="transf-cant" name="cantidad_mover" min="1" required class="input-ajuste" style="margin-bottom: 20px; border: 2px solid #ffc107; font-weight: bold; font-size: 18px; text-align: center; height: 50px;">
+            
+            <label style="font-weight: bold; font-size: 14px; display: block; margin-bottom: 8px;">2. Seleccioná la Zona Destino:</label>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
+                
+                {% set ns = namespace(hay_zonas=false) %}
+                
+                {% if zonas_operativas %}
+                    {% set ns.hay_zonas = true %}
+                    {% for zona in zonas_operativas %}
+                        
+                        {% set bg_color = '#f8f9fa' %}
+                        {% set text_color = '#333' %}
+                        {% set border = '2px solid #ced4da' %}
+                        
+                        {% if zona.proposito == 'APTO' %}
+                            {% set bg_color = '#198754' %}
+                            {% set text_color = 'white' %}
+                            {% set border = 'none' %}
+                        {% elif zona.proposito == 'OUTLET' %}
+                            {% set bg_color = '#ffc107' %}
+                            {% set text_color = 'black' %}
+                            {% set border = 'none' %}
+                        {% elif zona.proposito in ['NO_APTO', 'SCRAP', 'DEVOLUCION'] %}
+                            {% set bg_color = '#dc3545' %}
+                            {% set text_color = 'white' %}
+                            {% set border = 'none' %}
+                        {% elif zona.proposito == 'TALLER' %}
+                            {% set bg_color = '#e2e8f0' %}
+                            {% set text_color = '#334155' %}
+                            {% set border = '2px solid #cbd5e1' %}
+                        {% endif %}
+
+                        <button type="submit" name="zona_destino" value="{{ zona.id }}" style="padding: 12px; background: {{ bg_color }}; color: {{ text_color }}; border: {{ border }}; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">
+                            {{ zona.nombre }} ({{ zona.proposito }})
+                        </button>
+                    {% endfor %}
+                {% endif %}
+
+                {% if not ns.hay_zonas %}
+                    <div style="text-align: center; padding: 15px; background: #fff3cd; color: #856404; border-radius: 8px; font-size: 13px; border: 1px solid #ffeeba;">
+                        ⚠️ Aún no hay Zonas Operativas configuradas.<br>Pedile al Administrador que las cree.
+                    </div>
+                {% endif %}
+
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    const buscador = document.getElementById('buscador-producto');
+    const sugerenciasBox = document.getElementById('sugerencias-box');
+    const idRealInput = document.getElementById('producto_id_real');
+    const sectorActual = "{{ ubicacion.rack.sector }}";
+
+    if (buscador) {
+        function fetchProductos(query = '') {
+            fetch(`/buscar_productos_sugeridos?q=${encodeURIComponent(query)}&sector=${sectorActual}`)
+                .then(r => r.json())
+                .then(data => {
+                    sugerenciasBox.innerHTML = '';
+                    if (data.length > 0) {
+                        data.forEach(p => {
+                            const div = document.createElement('div');
+                            div.className = 'sugerencia-item';
+                            div.innerHTML = `<strong>${p.sku}</strong> - ${p.nombre}`;
+                            div.onclick = () => {
+                                buscador.value = `${p.sku} - ${p.nombre}`;
+                                idRealInput.value = p.id;
+                                sugerenciasBox.style.display = 'none';
+                            };
+                            sugerenciasBox.appendChild(div);
+                        });
+                        sugerenciasBox.style.display = 'block';
+                    } else { sugerenciasBox.style.display = 'none'; }
+                });
+        }
+        buscador.addEventListener('click', () => fetchProductos(buscador.value));
+        buscador.addEventListener('input', () => fetchProductos(buscador.value));
+        document.addEventListener('click', (e) => {
+            if (!buscador.contains(e.target) && !sugerenciasBox.contains(e.target)) sugerenciasBox.style.display = 'none';
+        });
+    }
+
+    // 🔥 SCRIPT PARA EL MODAL DE TRANSFERENCIA (SOLO POSVENTA) 🔥
+    {% if ubicacion.rack.sector == 'posventa' %}
+    function abrirModalTransferencia(itemId, maxCant, skuStr) {
+        // Ponemos el SKU en el texto
+        document.getElementById('transf-sku').innerText = skuStr;
+        
+        // Configuramos la cantidad (tope máximo y valor inicial)
+        const inputCant = document.getElementById('transf-cant');
+        inputCant.max = maxCant;
+        inputCant.value = maxCant;
+        
+        // Atamos el formulario a la ruta correcta de ese ítem
+        document.getElementById('formTransferencia').action = '/mover_zona_rapida/' + itemId;
+        
+        // Mostramos el modal
+        document.getElementById('modalTransferencia').style.display = 'flex';
+    }
+    {% endif %}
+
+    // 🔥 SCRIPT PARA EL REMITO MASIVO 🔥
+    function toggleAll(source) {
+        let checkboxes = document.getElementsByClassName('chk-item');
+        for(let i=0, n=checkboxes.length; i<n; i++) {
+            checkboxes[i].checked = source.checked;
+        }
+        actualizarBannerPosventa();
+    }
+
+    function actualizarBannerPosventa() {
+        const seleccionados = document.querySelectorAll('.chk-item:checked').length;
+        const banner = document.getElementById('banner-masivo-pv');
+        const texto = document.getElementById('txt-masivo-pv');
+        
+        if (seleccionados > 0) {
+            texto.innerText = `${seleccionados} bulto(s) seleccionados`;
+            banner.style.display = 'flex';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+
+    function enviarMasivoPosventa() {
+        const form = document.getElementById('form-masivo-posventa');
+        form.innerHTML = ''; 
+        
+        const seleccionados = document.querySelectorAll('.chk-item:checked');
+        seleccionados.forEach(chk => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'items_seleccionados';
+            input.value = chk.value;
+            form.appendChild(input);
+        });
+        
+        form.submit();
+    }
+</script>
+
+<a href="{{ url_for('consulta_rapida', sector=ubicacion.rack.sector) }}" class="fab-scanner" title="Consultar otra Posición">🕵️‍♂️</a>
+
+</body>
+</html>

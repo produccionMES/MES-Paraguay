@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial de Producción - WMS</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; }
+        .btn-nav { background: #334155; color: white; text-decoration: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; }
+        
+        .export-panel { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; border: 1px solid #e2e8f0; }
+        .export-panel form { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        .input-group label { font-size: 13px; font-weight: bold; color: #64748b; }
+        .input-group input { padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; outline: none; font-weight: bold; color: #334155; }
+        
+        .btn-filtrar { background: #0d6efd; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+        .btn-filtrar:hover { background: #0b5ed7; }
+        
+        .btn-exportar { background: #10b981; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+        .btn-exportar:hover { background: #059669; }
+        
+        .btn-limpiar { background: #64748b; color: white; text-decoration: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .btn-limpiar:hover { background: #475569; }
+
+        .btn-pdf { background: #ef4444; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 15px; text-decoration: none; }
+        .btn-pdf:hover { background: #dc2626; }
+
+        .table-responsive { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow-x: auto; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #f8fafc; color: #475569; font-weight: 800; text-transform: uppercase; font-size: 11px; }
+        
+        .tiempo-badge { background: #e0f2fe; color: #0369a1; padding: 6px 12px; border-radius: 20px; font-weight: 900; font-size: 14px; border: 1px solid #bae6fd; display: inline-block; white-space: nowrap;}
+        .estado-badge { padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; white-space: nowrap;}
+        .bg-finalizado { background: #fef08a; color: #854d0e; }
+        .bg-entregado { background: #d1e7dd; color: #0f5132; }
+        .bg-anulado { background: #fecdd3; color: #991b1b; } 
+        .operario-badge { background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #cbd5e1;}
+
+        /* 🔥 ESTILOS DE PAGINACIÓN 🔥 */
+        .paginacion { display: flex; justify-content: center; gap: 5px; margin: 20px 0; padding-bottom: 20px; flex-wrap: wrap; }
+        .page-link { padding: 8px 12px; border: 1px solid #cbd5e1; text-decoration: none; color: #475569; border-radius: 6px; font-weight: bold; transition: 0.2s; background: white; }
+        .page-link.active { background-color: #0d6efd; color: white; border-color: #0d6efd; }
+        .page-link:hover:not(.active) { background-color: #f1f5f9; }
+
+        @media (max-width: 768px) {
+            .export-panel { flex-direction: column; align-items: stretch; }
+            .export-panel form { flex-direction: column; align-items: stretch; }
+            .btn-exportar, .btn-filtrar, .btn-limpiar, .btn-pdf { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">📋 Historial de Tiempos (Fábrica)</h2>
+        <a href="{{ url_for('produccion') }}" class="btn-nav">← Volver a Fábrica</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="background-color: {% if category == 'error' %}#f8d7da{% else %}#d1e7dd{% endif %}; 
+                      color: {% if category == 'error' %}#842029{% else %}#0f5132{% endif %}; 
+                      padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; text-align: center;">
+              {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="export-panel">
+        <div>
+            <h3 style="margin: 0 0 5px 0; color: #0f172a;">Filtrar / Exportar Reporte</h3>
+            <p style="margin: 0; font-size: 13px; color: #64748b;">Buscá por fechas o SKU. Luego podés ver los resultados acá o bajarlos a Excel.</p>
+        </div>
+        
+        <form action="{{ url_for('historial_produccion') }}" method="GET">
+            <div class="input-group">
+                <label>Buscar SKU:</label>
+                <input type="text" name="sku" placeholder="Ej: CORT150" value="{{ sku_filtro }}">
+            </div>
+            <div class="input-group">
+                <label>Desde:</label>
+                <input type="date" name="fecha_desde" id="input_desde" value="{{ fecha_desde }}">
+            </div>
+            <div class="input-group">
+                <label>Hasta:</label>
+                <input type="date" name="fecha_hasta" id="input_hasta" value="{{ fecha_hasta }}">
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn-filtrar">
+                    🔍 Filtrar
+                </button>
+                
+                <button type="button" class="btn-exportar" onclick="exportarExcel()">
+                    📊 Excel
+                </button>
+
+                {# 🔥 BLOQUEO DE BOTÓN PDF PARA SUPERVISORES 🔥 #}
+                {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
+                    <button type="button" class="btn-pdf" onclick="abrirReportePDF()">
+                        📄 Reporte PDF
+                    </button>
+                {% endif %}
+
+                <a href="{{ url_for('historial_produccion') }}" class="btn-limpiar">Limpiar</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto (SKU)</th>
+                    <th>Cant.</th>
+                    <th>Lote Ref.</th>
+                    <th>Inicio de Fabricación</th>
+                    <th>Op. Inicio</th> 
+                    <th>Fin de Fabricación</th>
+                    <th>Op. Fin</th> 
+                    <th>Tiempo Invertido</th>
+                    <th>Estado Actual</th>
+                    
+                    {# 🔥 BLOQUEO DE LA COLUMNA "ACCIONES" PARA SUPERVISORES 🔥 #}
+                    {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
+                        <th>Acciones</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for orden in ordenes.items %}
+                    
+                    {% set tiempo_str = "S/D" %}
+                    {% if orden.fecha_inicio and orden.fecha_fin %}
+                        {% set diferencia = (orden.fecha_fin - orden.fecha_inicio).total_seconds() %}
+                        {% set minutos = (diferencia // 60) | int %}
+                        {% set segundos = (diferencia % 60) | int %}
+                        
+                        {% if minutos > 60 %}
+                            {% set horas = (minutos // 60) | int %}
+                            {% set mins_restantes = (minutos % 60) | int %}
+                            {% set tiempo_str = horas ~ "h " ~ mins_restantes ~ "m" %}
+                        {% elif minutos > 0 %}
+                            {% set tiempo_str = minutos ~ "m " ~ segundos ~ "s" %}
+                        {% else %}
+                            {% set tiempo_str = segundos ~ "s" %}
+                        {% endif %}
+                    {% endif %}
+
+                    <tr>
+                        <td style="font-weight: 900; color: #0f172a;">
+                            {{ orden.sku }}
+                            {% if orden.descripcion and orden.descripcion != 'S/D' %}
+                                <div style="font-size: 11px; color: #64748b; font-weight: normal; margin-top: 4px;">{{ orden.descripcion }}</div>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 18px; font-weight: bold;">{{ orden.cantidad }}</td>
+                        <td style="color: #64748b; font-weight: bold; font-size: 12px;">{{ orden.lote_referencia or '-' }}</td>
+                        <td style="font-size: 12px;">{{ orden.fecha_inicio.strftime('%d/%m/%Y %H:%M') if orden.fecha_inicio else 'Manual' }}</td>
+                        
+                        <td>
+                            {% if orden.operario_inicio %}
+                                <span class="operario-badge">👤 {{ orden.operario_inicio }}</span>
+                            {% else %}
+                                <span style="color: #94a3b8; font-size: 12px;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <td style="font-size: 12px;">{{ orden.fecha_fin.strftime('%d/%m/%Y %H:%M') if orden.fecha_fin else 'Manual' }}</td>
+                        
+                        <td>
+                            {% if orden.operario_fin %}
+                                <span class="operario-badge">👤 {{ orden.operario_fin }}</span>
+                            {% else %}
+                                <span style="color: #94a3b8; font-size: 12px;">-</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td><span class="tiempo-badge">⏱️ {{ tiempo_str }}</span></td>
+                        
+                        {# 🔥 MODIFICACIÓN DE ESTADO ACTUAL: SELECT PARA ADMIN 🔥 #}
+                        <td>
+                            {% if current_user.rol == 'admin' %}
+                                <form action="{{ url_for('cambiar_estado_produccion_admin', id=orden.id) }}" method="POST" style="margin: 0; display: flex; gap: 5px; align-items: center;">
+                                    <select name="nuevo_estado" style="padding: 4px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #cbd5e1; outline: none; background: white; cursor: pointer;">
+                                        <option value="Finalizado" {% if orden.estado == 'Finalizado' %}selected{% endif %}>✅ Finalizado</option>
+                                        <option value="Entregado" {% if orden.estado == 'Entregado' %}selected{% endif %}>📦 Entregado</option>
+                                        <option value="Anulado" {% if orden.estado == 'Anulado' %}selected{% endif %}>🚫 Anulado</option>
+                                        <option value="Pendiente" {% if orden.estado == 'Pendiente' %}selected{% endif %}>⏳ Pendiente</option>
+                                        <option value="En Proceso" {% if orden.estado == 'En Proceso' %}selected{% endif %}>⚙️ En Proceso</option>
+                                    </select>
+                                    <button type="submit" style="background: #1e293b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Guardar Cambio">💾</button>
+                                </form>
+                            {% else %}
+                                <span class="estado-badge 
+                                    {% if orden.estado == 'Finalizado' %}bg-finalizado
+                                    {% elif orden.estado == 'Entregado' %}bg-entregado
+                                    {% else %}bg-anulado{% endif %}">
+                                    
+                                    {% if orden.estado == 'Finalizado' %}
+                                        {% if orden.origen_pedido == 'Planificación' %}
+                                            ✅ Fabricado
+                                        {% else %}
+                                            ⏳ Esperando a Logística
+                                        {% endif %}
+                                    {% elif orden.estado == 'Entregado' %}
+                                        📦 Entregado a Logística
+                                    {% else %}
+                                        🚫 Anulado
+                                    {% endif %}
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        {# 🔥 BLOQUEO DEL BOTÓN DE BORRAR PARA SUPERVISORES 🔥 #}
+                        {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
+                        <td>
+                            <form action="{{ url_for('borrar_registro_produccion', id=orden.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
+                                <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 20px;" title="Eliminar">🗑️</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="10" style="text-align: center; color: #64748b; padding: 40px;">No hay resultados para esta búsqueda.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="paginacion">
+        {% if ordenes.has_prev %}
+            <a href="{{ url_for('historial_produccion', page=ordenes.prev_num, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, sku=sku_filtro) }}" class="page-link">« Anterior</a>
+        {% endif %}
+        
+        {% for page_num in ordenes.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+                <a href="{{ url_for('historial_produccion', page=page_num, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, sku=sku_filtro) }}" class="page-link {{ 'active' if page_num == ordenes.page else '' }}">{{ page_num }}</a>
+            {% else %}
+                <span class="page-link" style="border:none; background: transparent;">...</span>
+            {% endif %}
+        {% endfor %}
+        
+        {% if ordenes.has_next %}
+            <a href="{{ url_for('historial_produccion', page=ordenes.next_num, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, sku=sku_filtro) }}" class="page-link">Siguiente »</a>
+        {% endif %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const hoy = new Date().toISOString().split('T')[0];
+            const inputDesde = document.getElementById('input_desde');
+            const inputHasta = document.getElementById('input_hasta');
+            
+            if (!inputDesde.value) inputDesde.value = hoy;
+            if (!inputHasta.value) inputHasta.value = hoy;
+        });
+
+        function exportarExcel() {
+            const form = document.querySelector('form');
+            const accionOriginal = form.action;
+            const metodoOriginal = form.method;
+
+            form.action = "{{ url_for('exportar_produccion') }}";
+            form.method = "POST";
+            form.submit();
+
+            setTimeout(() => {
+                form.action = accionOriginal;
+                form.method = metodoOriginal;
+            }, 100);
+        }
+
+        function abrirReportePDF() {
+            const fecha = document.getElementById('input_hasta').value;
+            window.open(`{{ url_for('reporte_produccion_diario') }}?fecha=${fecha}`, '_blank');
+        }
+    </script>
+</body>
+</html>

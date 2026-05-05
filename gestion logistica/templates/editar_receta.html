@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Configurar Receta - WMS</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        .contenedor-central { max-width: 1000px; margin: 0 auto; }
+        
+        .header-receta { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; gap: 20px; align-items: center; margin-bottom: 25px; border-left: 8px solid #0284c7; }
+        
+        .img-preview-grande { width: 120px; height: 120px; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; background: white; flex-shrink: 0; }
+        .img-preview-grande img { width: 100%; height: 100%; object-fit: contain; }
+
+        .panel-agregar { background: #0f172a; color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; transition: box-shadow 0.3s ease; }
+        .form-insumo { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; position: relative; } 
+        .input-group label { font-size: 12px; font-weight: bold; color: #94a3b8; }
+        
+        select, input { padding: 12px; border-radius: 6px; border: none; font-size: 14px; outline: none; }
+        .btn-add { background: #10b981; color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; align-self: flex-end; }
+        .btn-add:active { transform: scale(0.98); }
+
+        .tabla-bom { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        th { background: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 11px; }
+        
+        .img-tabla { width: 50px; height: 50px; border-radius: 4px; object-fit: contain; background: #fff; border: 1px solid #e2e8f0; }
+        
+        .btn-del { color: #ef4444; background: #fee2e2; border: 1px solid #fecaca; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-del:active { transform: scale(0.95); background: #fca5a5; }
+
+        .btn-edit { background: #fef3c7; color: #d97706; border: 1px solid #fcd34d; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-edit:active { transform: scale(0.95); background: #fde68a; }
+
+        #buscador-insumo { width: 100%; border: 2px solid #0ea5e9; font-weight: 500; cursor: text; box-sizing: border-box; }
+        #buscador-insumo:focus { box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2); }
+        #sugerencias-box { position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid #ddd; z-index: 1000; display: none; border-radius: 0 0 8px 8px; box-shadow: 0 8px 16px rgba(0,0,0,0.15); max-height: 250px; overflow-y: auto; margin-top: 4px; }
+        .sugerencia-item { padding: 12px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; transition: 0.2s; color: #334155; }
+        .sugerencia-item:hover { background-color: #f0f9ff; color: #0284c7; font-weight: bold; }
+
+        .visor-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100000; flex-direction: column; backdrop-filter: blur(5px); }
+        .visor-header { width: 100%; padding: 15px; display: flex; justify-content: center; gap: 10px; background: rgba(0,0,0,0.6); box-sizing: border-box; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 2; flex-wrap: wrap; }
+        .btn-visor { background: #334155; color: white; border: 1px solid #475569; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .btn-visor:active { background: #475569; transform: scale(0.95); }
+        .btn-visor-close { background: #dc3545; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .btn-visor-close:active { background: #b91c1c; transform: scale(0.95); }
+        
+        .visor-body { flex: 1; overflow: auto; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .visor-body img { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: width 0.1s ease-out; max-width: none; max-height: none; }
+        
+        .img-zoom { cursor: zoom-in; transition: transform 0.2s; }
+        .img-zoom:hover { transform: scale(1.05); border-color: #0ea5e9; }
+
+        .info-hint { font-size: 10px; color: #64748b; margin-top: 3px; font-style: italic; }
+
+        /* 🔥 ESTILOS NUEVOS PARA ARRASTRAR 🔥 */
+        .handle { cursor: grab; font-size: 20px; color: #94a3b8; text-align: center; width: 40px; }
+        .handle:active { cursor: grabbing; }
+        .sortable-ghost { background-color: #f0f9ff !important; opacity: 0.7; border: 2px dashed #0ea5e9; }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .header-receta { flex-direction: column; text-align: center; padding: 15px; }
+            .img-preview-grande { margin: 0 auto; }
+            .form-insumo { flex-direction: column; align-items: stretch; gap: 10px; }
+            .input-group { width: 100% !important; }
+            .btn-add { width: 100%; margin-top: 5px; padding: 15px; font-size: 16px; }
+            th, td { padding: 10px; font-size: 13px; }
+            .visor-header { padding: 10px; }
+            .btn-visor, .btn-visor-close { flex: 1; padding: 12px 5px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="contenedor-central">
+        <div style="margin-bottom: 20px; display: inline-block; background: white; padding: 8px 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <a href="{{ url_for('ingenieria') }}" style="text-decoration: none; color: #64748b; font-weight: bold;">← Volver al Catálogo</a>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 20px;">
+                    {% for category, message in messages %}
+                        <div style="padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center;
+                                    {% if category == 'error' %} background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;
+                                    {% elif category == 'success' %} background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
+                                    {% else %} background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; {% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="header-receta">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                <div class="img-preview-grande">
+                    <img src="{{ url_for('static', filename='img/repuestos/' + producto.imagen) if producto.imagen and producto.imagen != 'sin_foto.png' else url_for('static', filename='img/repuestos/sin_foto.png') }}" alt="Foto" class="img-zoom" onclick="abrirVisor(this.src)" title="Clic para agrandar">
+                </div>
+                
+                <div style="display: flex; gap: 5px;">
+                    <form action="{{ url_for('subir_foto_ingenieria', id_producto=producto.id) }}" method="POST" enctype="multipart/form-data" id="formSubir">
+                        <label for="inputFoto" style="background: #0284c7; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📸 Subir Foto</label>
+                        <input type="file" id="inputFoto" name="foto_nueva" accept="image/*" style="display: none;" onchange="document.getElementById('formSubir').submit()">
+                    </form>
+
+                    {% if producto.imagen and producto.imagen != 'sin_foto.png' %}
+                    <form action="{{ url_for('borrar_foto_ingenieria', id_producto=producto.id) }}" method="POST">
+                        <button type="submit" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onclick="return confirm('¿Borrar foto definitivamente?')">🗑️</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="flex-grow: 1;">
+                <h1 style="margin: 0; color: #0f172a;">{{ producto.sku }}</h1>
+                <p style="margin: 5px 0 0 0; color: #64748b; font-size: 16px;">{{ producto.descripcion }}</p>
+                <span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-top: 10px; display: inline-block;">ESPECIFICACIÓN TÉCNICA Y BOM</span>
+            </div>
+        </div>
+
+        <div class="panel-agregar">
+            <h3 style="margin: 0 0 15px 0;" id="titulo-form">➕ Agregar Insumo a la Receta (BOM)</h3>
+            <form action="{{ url_for('agregar_insumo_receta') }}" method="POST" class="form-insumo">
+                <input type="hidden" name="producto_final_id" value="{{ producto.id }}">
+                
+                <div class="input-group" style="flex-grow: 1; width: 100%;">
+                    <label>Buscar Materia Prima</label>
+                    <input type="text" id="buscador-insumo" placeholder="🔍 Tipeá el SKU o descripción..." autocomplete="off">
+                    <input type="hidden" name="insumo_id" id="insumo_id_real" required>
+                    <div id="sugerencias-box"></div>
+                </div>
+
+                <div class="input-group" style="width: 100px;">
+                    <label>Cantidad</label>
+                    <input type="number" name="cantidad" step="0.01" min="0" value="1" required>
+                </div>
+
+                <div class="input-group" style="width: 120px;">
+                    <label>U. Medida</label>
+                    <select name="unidad_medida" style="font-weight: bold; color: #0f172a;">
+                        <option value="Unidades" selected>Unidades</option>
+                        <option value="Metros">Metros</option>
+                        <option value="M2">MT2</option>
+                        <option value="Kg">Kg</option>
+                        <option value="Gr">Gr</option>
+                        <option value="Litros">Litros</option>
+                        <option value="MT3">MT3</option>
+                        <option value="Pares">Pares</option>
+                    </select>
+                </div>
+
+                <div class="input-group" style="flex-grow: 1; min-width: 250px;">
+                    <label style="color: #cbd5e1;">Condición (Filtro Inteligente)</label>
+                    <input type="text" name="condicion" placeholder="Ej: 32mm, !DOBLE">
+                    <span class="info-hint">Solo se usará si el pedido contiene estas palabras.</span>
+                </div>
+
+                <div class="input-group" style="flex-grow: 2; min-width: 300px;">
+                    <label style="color: #cbd5e1;">Fórmula Dinámica (Opcional)</label>
+                    <input type="text" name="formula" placeholder="Ej: (ANCHO - 3) / 100 * CANTIDAD">
+                    <span class="info-hint">Variables: ANCHO, ALTO, CANTIDAD, UNID.</span>
+                </div>
+
+                <button type="submit" class="btn-add" id="btn-submit-form">+ Vincular</button>
+            </form>
+        </div>
+
+        <div class="tabla-bom">
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center;">☰</th>
+                            <th style="width: 80px; text-align: center;">Foto</th>
+                            <th>SKU Insumo</th>
+                            <th>Descripción</th>
+                            <th>Cant. / Fórmula</th>
+                            <th>Condición</th>
+                            <th style="text-align: center;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-ordenada">
+                        {% for item in componentes %}
+                        <tr data-id="{{ item.id }}" style="background: white;">
+                            <td class="handle" title="Arrastrar para reordenar">☰</td>
+                            
+                            {% if item.insumo %}
+                            <td style="text-align: center;">
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                                    <img src="{{ url_for('static', filename='img/repuestos/' + item.insumo.imagen) if item.insumo.imagen and item.insumo.imagen != 'sin_foto.png' else url_for('static', filename='img/repuestos/sin_foto.png') }}" class="img-tabla img-zoom" alt="Foto" onclick="abrirVisor(this.src)" title="Clic para agrandar">
+                                    
+                                    <div style="display: flex; gap: 4px; justify-content: center;">
+                                        <form action="{{ url_for('subir_foto_ingenieria', id_producto=item.insumo.id) }}" method="POST" enctype="multipart/form-data" id="formFoto_{{ item.insumo.id }}">
+                                            <label for="file_{{ item.insumo.id }}" style="background: #0ea5e9; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2);" title="Subir foto al insumo">📸</label>
+                                            <input type="file" id="file_{{ item.insumo.id }}" name="foto_nueva" accept="image/*" style="display: none;" onchange="document.getElementById('formFoto_{{ item.insumo.id }}').submit()">
+                                        </form>
+                                        
+                                        {% if item.insumo.imagen and item.insumo.imagen != 'sin_foto.png' %}
+                                        <form action="{{ url_for('borrar_foto_ingenieria', id_producto=item.insumo.id) }}" method="POST">
+                                            <button type="submit" style="background: #ef4444; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2);" title="Borrar foto" onclick="return confirm('¿Borrar la foto de este insumo?')">🗑️</button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td style="font-weight: bold;">{{ item.insumo.sku }}</td>
+                            <td style="color: #64748b;">{{ item.insumo.descripcion }}</td>
+                            {% else %}
+                            <td style="text-align: center;">⚠️</td>
+                            <td style="font-weight: bold; color: #dc2626;">INSUMO ELIMINADO</td>
+                            <td style="color: #ef4444;">El producto original fue borrado de Materias Primas. Por favor, quitá esta línea de la receta.</td>
+                            {% endif %}
+                            
+                            <td>
+                                {% if item.formula %}
+                                    <span style="font-family: monospace; background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">ƒ(x): {{ item.formula }}</span>
+                                    <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Unidad: {{ item.unidad_medida }}</div>
+                                {% else %}
+                                    <span style="font-size: 18px; font-weight: 800; color: #0284c7; white-space: nowrap;">
+                                        {{ item.cantidad_necesaria }} 
+                                        <span style="font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; margin-left: 4px;">{{ item.unidad_medida }}</span>
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if item.condicion %}
+                                    <span style="background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #cbd5e1;">IF: {{ item.condicion }}</span>
+                                {% else %}
+                                    <span style="color: #cbd5e1; font-size: 12px;">Siempre activo</span>
+                                {% endif %}
+                            </td>
+                            
+                            <td>
+                                <div style="display: flex; gap: 8px; justify-content: center; align-items: center;">
+                                    {% if item.insumo %}
+                                    <button type="button" class="btn-edit" 
+                                            data-id="{{ item.insumo.id }}" 
+                                            data-sku="{{ item.insumo.sku }}" 
+                                            data-desc="{{ item.insumo.descripcion }}" 
+                                            data-cant="{{ item.cantidad_necesaria }}" 
+                                            data-uni="{{ item.unidad_medida }}" 
+                                            data-cond="{{ item.condicion or '' }}" 
+                                            data-form="{{ item.formula or '' }}" 
+                                            onclick="cargarEdicion(this)" title="Modificar insumo">
+                                        ✏️ Editar
+                                    </button>
+                                    {% endif %}
+
+                                    <form action="{{ url_for('borrar_insumo_receta', receta_id=item.id) }}" method="POST" style="margin: 0;">
+                                        <button type="submit" class="btn-del" onclick="return confirm('¿Quitar este insumo de la receta?')">🗑️ Quitar</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;">
+                                Esta receta aún no tiene componentes cargados.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="visorImagen" class="visor-overlay">
+        <div class="visor-header">
+            <button class="btn-visor" onclick="hacerZoom(0.15)">🔍 + Zoom In</button>
+            <button class="btn-visor" onclick="hacerZoom(-0.15)">🔍 - Zoom Out</button>
+            <button class="btn-visor-close" onclick="cerrarVisor()">❌ Cerrar</button>
+        </div>
+        <div class="visor-body" id="visorCuerpo" onclick="if(event.target === this) cerrarVisor()">
+            <img id="imgVisor" src="" alt="Visor ampliado" style="width: auto; height: auto; cursor: grab;">
+        </div>
+    </div>
+
+    <script>
+        // ===============================================
+        // 🔥 MAGIA: ARRASTRAR Y GUARDAR ORDEN AUTOMÁTICO 🔥
+        // ===============================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const el = document.getElementById('lista-ordenada');
+            if(el) {
+                Sortable.create(el, {
+                    handle: '.handle', // Solo se mueve desde las 3 rayitas
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: function () {
+                        // Rescatamos los IDs en el nuevo orden
+                        let nuevoOrden = [];
+                        document.querySelectorAll('#lista-ordenada tr[data-id]').forEach(tr => {
+                            nuevoOrden.push(tr.getAttribute('data-id'));
+                        });
+
+                        // Mandamos el nuevo orden a Python silenciosamente
+                        fetch('/ingenieria/guardar_orden_receta', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orden: nuevoOrden })
+                        }).then(response => {
+                            console.log("✅ Nuevo orden guardado en base de datos");
+                        }).catch(err => console.error(err));
+                    }
+                });
+            }
+        });
+
+        // ===============================================
+        // FUNCIÓN PARA EDITAR INSUMOS FÁCILMENTE 
+        // ===============================================
+        function cargarEdicion(btnElement) {
+            const id = btnElement.getAttribute('data-id');
+            const sku = btnElement.getAttribute('data-sku');
+            const desc = btnElement.getAttribute('data-desc');
+            const cant = btnElement.getAttribute('data-cant');
+            const uni = btnElement.getAttribute('data-uni');
+            const cond = btnElement.getAttribute('data-cond');
+            const form = btnElement.getAttribute('data-form');
+
+            document.getElementById('buscador-insumo').value = sku + ' - ' + desc;
+            document.getElementById('insumo_id_real').value = id;
+            document.querySelector('input[name="cantidad"]').value = cant;
+            document.querySelector('select[name="unidad_medida"]').value = uni;
+            document.querySelector('input[name="condicion"]').value = cond;
+            document.querySelector('input[name="formula"]').value = form;
+
+            document.getElementById('titulo-form').innerHTML = '✏️ Editando: ' + sku;
+            const btnSubmit = document.getElementById('btn-submit-form');
+            btnSubmit.innerHTML = '💾 Actualizar Cambios';
+            btnSubmit.style.background = '#f59e0b';
+            btnSubmit.style.color = '#fff';
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            const panel = document.querySelector('.panel-agregar');
+            panel.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.4)';
+            panel.style.border = '2px solid #fcd34d';
+            
+            setTimeout(() => { 
+                panel.style.boxShadow = 'none'; 
+                panel.style.border = 'none';
+            }, 1500);
+        }
+
+        // ===============================================
+        // ZOOM DE IMÁGENES Y BUSCADOR
+        // ===============================================
+        let zoomFactor = 1;
+
+        function abrirVisor(srcUrl) {
+            zoomFactor = 1;
+            const img = document.getElementById('imgVisor');
+            img.style.width = 'auto';
+            img.style.height = 'auto';
+            img.src = srcUrl;
+            document.getElementById('visorImagen').style.display = 'flex';
+        }
+
+        function cerrarVisor() {
+            document.getElementById('visorImagen').style.display = 'none';
+        }
+
+        function hacerZoom(cambio) {
+            const img = document.getElementById('imgVisor');
+            if (!img.naturalWidth) return;
+            zoomFactor += cambio;
+            if(zoomFactor < 0.25) zoomFactor = 0.25;  
+            if(zoomFactor > 5) zoomFactor = 5; 
+            img.style.width = (img.naturalWidth * zoomFactor) + 'px';
+            img.style.height = 'auto';
+        }
+
+        document.getElementById('imgVisor').addEventListener('wheel', function(event) {
+            event.preventDefault(); 
+            if (event.deltaY < 0) { hacerZoom(0.15); } else { hacerZoom(-0.15); }
+        }, { passive: false });
+
+        const buscador = document.getElementById('buscador-insumo');
+        const sugerenciasBox = document.getElementById('sugerencias-box');
+        const idRealInput = document.getElementById('insumo_id_real');
+
+        if (buscador) {
+            let timeout = null;
+            function fetchInsumos(query = '') {
+                fetch(`/buscar_productos_sugeridos?q=${encodeURIComponent(query)}&sector=materias_primas`)
+                    .then(r => r.json())
+                    .then(data => {
+                        sugerenciasBox.innerHTML = '';
+                        if (data.length > 0) {
+                            data.forEach(p => {
+                                const div = document.createElement('div');
+                                div.className = 'sugerencia-item';
+                                div.innerHTML = `<strong>${p.sku}</strong> - ${p.nombre}`;
+                                div.onclick = () => {
+                                    buscador.value = `${p.sku} - ${p.nombre}`;
+                                    idRealInput.value = p.id;
+                                    sugerenciasBox.style.display = 'none';
+                                    
+                                    document.getElementById('titulo-form').innerHTML = '➕ Agregar Insumo a la Receta (BOM)';
+                                    const btnSubmit = document.getElementById('btn-submit-form');
+                                    btnSubmit.innerHTML = '+ Vincular';
+                                    btnSubmit.style.background = '#10b981';
+                                };
+                                sugerenciasBox.appendChild(div);
+                            });
+                            sugerenciasBox.style.display = 'block';
+                        } else { 
+                            sugerenciasBox.innerHTML = '<div class="sugerencia-item" style="color: #dc3545; font-style: italic;">No se encontraron insumos...</div>';
+                            sugerenciasBox.style.display = 'block'; 
+                        }
+                    });
+            }
+
+            buscador.addEventListener('input', () => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => fetchInsumos(buscador.value), 200);
+            });
+            buscador.addEventListener('click', () => {
+                if(buscador.value === '') fetchInsumos('');
+                else sugerenciasBox.style.display = 'block';
+            });
+            document.addEventListener('click', (e) => {
+                if (!buscador.contains(e.target) && !sugerenciasBox.contains(e.target)) {
+                    sugerenciasBox.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

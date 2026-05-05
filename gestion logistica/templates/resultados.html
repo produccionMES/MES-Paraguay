@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Resultados de Búsqueda</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        .contenedor { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;}
+        .btn-volver { text-decoration: none; background: #6c757d; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold; }
+
+        .flash-msg { padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 15px; }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+
+        .card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; padding: 15px; }
+        .row { display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
+        .col { flex: 1; min-width: 200px; }
+        .form-control { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; height: 36px; }
+        .btn-primary { background: #0d6efd; color: white; border: none; padding: 9px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 36px;}
+        .btn-outline { background: white; color: #6c757d; border: 1px solid #6c757d; padding: 8px 15px; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; height: 36px; box-sizing: border-box;}
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #e9ecef; font-size: 13px; text-transform: uppercase; }
+        
+        .badge-ubicacion { background: #198754; color: white; padding: 6px 10px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+        .badge-ubicacion:hover { background: #157347; }
+        
+        .btn-borrar { background: none; border: 1px solid #dc3545; color: #dc3545; padding: 5px 8px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-borrar:hover { background: #dc3545; color: white; }
+        
+        .badge-sub { background: #0d6efd; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; }
+
+        /* --- ESTILOS DE PAGINACIÓN --- */
+        .paginacion-container { display: flex; flex-direction: column; align-items: center; margin-top: 30px; gap: 10px; }
+        .pagination { display: flex; list-style: none; padding: 0; margin: 0; gap: 5px; }
+        .page-item { text-decoration: none; }
+        .page-link { padding: 8px 16px; border: 1px solid #dee2e6; color: #0d6efd; border-radius: 4px; text-decoration: none; background: white; }
+        .page-item.active .page-link { background-color: #0d6efd; color: white; border-color: #0d6efd; }
+        .page-item.disabled .page-link { color: #6c757d; pointer-events: none; background-color: #fff; border-color: #dee2e6; }
+        .page-link:hover { background-color: #e9ecef; }
+
+        /* --- ESTILO RESUMEN TOTAL --- */
+        .total-banner { background: #e7f1ff; border: 1px solid #b6d4fe; padding: 12px 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="header">
+        <h2 style="margin: 0;">🔍 Resultados para: "{{ termino }}"</h2>
+    
+        <div style="display: flex; gap: 10px; align-items: center;">
+            {% if resultados %}
+                {% if sector == 'materias_primas' %}
+                    <a href="{{ url_for('exportar_busqueda_mp', q=termino, f_sku=f_sku, f_desc=f_desc, f_estado=f_estado) }}" 
+                       style="background: #fd7e14; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(253, 126, 20, 0.2); transition: 0.2s;">
+                        📊 Exportar a Excel
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('exportar_busqueda_logistica', q=termino, sector=sector, f_sku=f_sku, f_desc=f_desc, f_estado=f_estado) }}" 
+                       style="background: #fd7e14; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(253, 126, 20, 0.2); transition: 0.2s;">
+                        📊 Exportar a Excel
+                    </a>
+                {% endif %}
+            {% endif %}
+
+            {% if sector == 'materias_primas' %}
+                <a href="{{ url_for('materias_primas') }}" class="btn-volver">← Volver</a>
+            {% elif sector == 'posventa' %}
+                <a href="{{ url_for('posventa') }}" class="btn-volver">← Volver</a>
+            {% else %}
+                <a href="{{ url_for('logistica') }}" class="btn-volver">← Volver</a>
+            {% endif %}
+        </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">
+              {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if not resultados and not f_sku and not f_desc and not f_estado %}
+        <p style="color: #dc3545; font-weight: bold; padding: 20px; text-align: center; border: 2px dashed #dc3545; border-radius: 8px;">
+            No se encontró stock de ningún producto que coincida con ese texto o código.
+        </p>
+    {% else %}
+
+        <div class="card">
+            <form action="{{ url_for('buscar') }}" method="GET" class="row">
+                <input type="hidden" name="q" value="{{ termino }}">
+                <input type="hidden" name="sector" value="{{ sector }}">
+
+                <div class="col">
+                    <label style="font-size: 12px; font-weight: bold; color: #666;">Refinar por SKU:</label>
+                    <input type="text" name="f_sku" class="form-control" placeholder="Ej: 0060" value="{{ f_sku or '' }}">
+                </div>
+                
+                <div class="col">
+                    <label style="font-size: 12px; font-weight: bold; color: #666;">Refinar por Descripción:</label>
+                    <input type="text" name="f_desc" class="form-control" placeholder="Ej: Blackout" value="{{ f_desc or '' }}">
+                </div>
+
+                <div class="col" style="flex: 1.5;">
+                    <label style="font-size: 12px; font-weight: bold; color: #666;">Estado / Calidad:</label>
+                    <div style="display: flex; gap: 5px; background: #fff; padding: 3px; border-radius: 4px; border: 1px solid #ccc; height: 36px; box-sizing: border-box;">
+                        
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 0 10px; border-radius: 4px; font-size: 12px; font-weight: bold; background: {{ '#0d6efd' if f_estado == 'apto' else 'transparent' }}; color: {{ 'white' if f_estado == 'apto' else '#6c757d' }}; flex: 1; justify-content: center; transition: 0.2s;">
+                            <input type="radio" name="f_estado" value="apto" {% if f_estado == 'apto' %}checked{% endif %} onchange="this.form.submit()" style="display:none;"> ✅ Apto
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 0 10px; border-radius: 4px; font-size: 12px; font-weight: bold; background: {{ '#dc3545' if f_estado == 'no_apto' else 'transparent' }}; color: {{ 'white' if f_estado == 'no_apto' else '#6c757d' }}; flex: 1; justify-content: center; transition: 0.2s;">
+                            <input type="radio" name="f_estado" value="no_apto" {% if f_estado == 'no_apto' %}checked{% endif %} onchange="this.form.submit()" style="display:none;"> ⚠️ No Apto
+                        </label>
+
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 0 10px; border-radius: 4px; font-size: 12px; font-weight: bold; background: {{ '#6c757d' if not f_estado else 'transparent' }}; color: {{ 'white' if not f_estado else '#6c757d' }}; flex: 1; justify-content: center; transition: 0.2s;">
+                            <input type="radio" name="f_estado" value="" {% if not f_estado %}checked{% endif %} onchange="this.form.submit()" style="display:none;"> Todos
+                        </label>
+                        
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn-primary">Filtrar Lista</button>
+                    <a href="{{ url_for('buscar', q=termino, sector=sector) }}" class="btn-outline">Limpiar Filtros</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="total-banner">
+            <span style="color: #084298; font-weight: bold; font-size: 15px;">
+                CANTIDAD TOTAL ENCONTRADA:
+            </span>
+            <span style="background: #0d6efd; color: white; padding: 5px 15px; border-radius: 50px; font-size: 22px; font-weight: 800; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                {{ total_stock }}
+            </span>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Lote / Venc.</th>
+                    <th>Descripción</th>
+                    <th>Sub-división</th>
+                    <th style="text-align: center;">Stock</th>
+                    <th>Ubicación Física</th>
+                    <th style="width: 180px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in resultados %}
+                <tr style="{% if item.estado_calidad == 'no_apto' %}background-color: #fff5f5;{% elif item.estado_calidad == 'outlet' %}background-color: #fffbeb;{% endif %}">
+                    <td><strong>{{ item.producto_detalle.sku }}</strong></td>
+                    
+                    <td style="font-size: 12px; color: #555;">
+                        <strong>L:</strong> {{ item.lote or '-' }}<br>
+                        <strong>V:</strong> {{ item.fecha_vencimiento or '-' }}
+                    </td>
+
+                    <td style="font-size: 13px;">{{ item.producto_detalle.descripcion }}</td>
+                    
+                    <td>
+                        <span class="badge-sub" style="margin-bottom: 5px; display: inline-block;">{{ item.sub_ubicacion if item.sub_ubicacion else 'General' }}</span><br>
+                        
+                        {% if item.estado_calidad == 'apto' %}
+                            <span style="font-size: 10px; font-weight: bold; color: #198754;">✅ APTO</span>
+                        {% elif item.estado_calidad == 'outlet' %}
+                            <span style="font-size: 10px; font-weight: bold; color: #d97706;">💰 OUTLET</span>
+                        {% else %}
+                            <span style="font-size: 10px; font-weight: bold; color: #dc3545;">⚠️ NO APTO</span>
+                        {% endif %}
+                    </td>
+                    
+                    <td style="font-size: 18px; font-weight: bold; color: #0d6efd; text-align: center;">{{ item.cantidad }}</td>
+                    
+                    <td>
+                        <strong style="color: #212529;">📍 {{ item.ubicacion.rack.nombre }}</strong><br>
+                        <span style="font-size: 12px; color: #6c757d;">Pos: {{ item.ubicacion.codigo_unico.replace('PV-', '').replace('MP-', '').replace('LO-', '').split('-ID')[0] }}</span>
+                    </td>
+
+                    <td>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <a href="{{ url_for('detalle_ubicacion', rack_id=item.ubicacion.rack_id, nivel=item.ubicacion.nivel, pos=item.ubicacion.posicion) }}" class="badge-ubicacion" title="Ir a la posición">
+                                👁️ ➔
+                            </a>
+
+                            {% if current_user.rol in ['admin', 'jefe_logistica'] %}
+                            <form action="{{ url_for('eliminar_item_busqueda', item_id=item.id) }}" method="POST" 
+                                  onsubmit="return confirm('⚠️ ¿Estás totalmente seguro de borrar TODO el stock de este ítem en esta ubicación? Esta acción no se puede deshacer.');" 
+                                  style="margin: 0;">
+                                <button type="submit" class="btn-borrar" title="Eliminar este registro de stock">
+                                    🗑️ Borrar
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if pagination and pagination.pages > 1 %}
+        <div class="paginacion-container">
+            <div class="pagination">
+                {# Botón Anterior #}
+                <a class="page-link {% if not pagination.has_prev %}disabled{% endif %}" 
+                   href="{{ url_for('buscar', q=termino, sector=sector, f_sku=f_sku, f_desc=f_desc, f_estado=f_estado, page=pagination.prev_num) if pagination.has_prev else '#' }}">
+                    &laquo; Anterior
+                </a>
+
+                {# Números de página inteligentes #}
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <a class="page-link {% if page_num == pagination.page %}active{% endif %}" 
+                           href="{{ url_for('buscar', q=termino, sector=sector, f_sku=f_sku, f_desc=f_desc, f_estado=f_estado, page=page_num) }}">
+                            {{ page_num }}
+                        </a>
+                    {% else %}
+                        <span class="page-link disabled">...</span>
+                    {% endif %}
+                {% endfor %}
+
+                {# Botón Siguiente #}
+                <a class="page-link {% if not pagination.has_next %}disabled{% endif %}" 
+                   href="{{ url_for('buscar', q=termino, sector=sector, f_sku=f_sku, f_desc=f_desc, f_estado=f_estado, page=pagination.next_num) if pagination.has_next else '#' }}">
+                    Siguiente &raquo;
+                </a>
+            </div>
+            <div style="font-size: 12px; color: #6c757d;">
+                Página {{ pagination.page }} de {{ pagination.pages }} | Total: {{ pagination.total }} registros encontrados
+            </div>
+        </div>
+        {% endif %}
+
+    {% endif %}
+</div>
+
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carga de Pedidos - Ventas</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #334155; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-nav { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.2s; border: none; cursor: pointer;}
+        .btn-nav:hover { background: #2563eb; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
+        
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #0f172a; font-size: 13px; text-transform: uppercase;}
+        input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 10px 12px; border: 2px solid #cbd5e1; border-radius: 8px; outline: none; font-size: 14px; font-weight: bold; color: #334155; box-sizing: border-box; }
+        input:focus, textarea:focus, select:focus { border-color: #8b5cf6; }
+        
+        .radio-group { display: flex; gap: 20px; background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;}
+        .radio-group label { margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 15px; text-transform: none;}
+        input[type="radio"] { width: 18px; height: 18px; accent-color: #8b5cf6; }
+
+        .grid-medida { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;}
+
+        table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        th { background: #f8fafc; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+
+        .tabs-container { display: flex; gap: 5px; margin-bottom: -2px; }
+        .tab-btn { 
+            padding: 12px 25px; border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; 
+            background: #f1f5f9; cursor: pointer; font-weight: bold; color: #64748b; transition: 0.2s;
+            border-bottom: none;
+        }
+        .tab-btn.active { 
+            background: white; color: #8b5cf6; border-top: 4px solid #8b5cf6; position: relative; z-index: 5;
+        }
+        .tab-content-box { 
+            background: white; padding: 30px; border-radius: 0 16px 16px 16px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">🛒 Ventas: Carga de Pedidos</h2>
+        <div style="display: flex; gap: 10px;">
+            {% if current_user.rol in ['admin', 'jefe_ventas'] %}
+                <a href="{{ url_for('gestionar_usuarios', sector='ventas') }}" class="btn-nav" style="background: #0ea5e9;">👥 Personal</a>
+            {% endif %}
+            <a href="{{ url_for('ventas') }}" class="btn-nav" style="background: #8b5cf6;">📊 Tablero Ventas</a>
+            <a href="{{ url_for('home') }}" class="btn-nav" style="background: #334155;">🏠 Inicio</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="background-color: #dcfce7; color: #166534; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; border: 1px solid #86efac; text-align: center;">
+              {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="container" style="background:transparent; box-shadow:none; border:none; padding:0;">
+        
+        <div class="tabs-container">
+            <button type="button" class="tab-btn active" id="btn-tab-produccion" onclick="switchTab('produccion')">🏭 Para Producción</button>
+            <button type="button" class="tab-btn" id="btn-tab-logistica" onclick="switchTab('logistica')">🚚 De Stock (Logística)</button>
+        </div>
+
+        <div class="tab-content-box">
+            <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">📝 Ingresar Nuevo Pedido</h3>
+            
+            <form action="{{ url_for('carga_pedidos') }}" method="POST">
+                <input type="hidden" name="destino_pedido" id="destino_pedido" value="produccion">
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div class="form-group">
+                        <label>Nombre del Cliente / Local</label>
+                        <input type="text" name="cliente" required placeholder="Ej: Decoraciones Martínez">
+                    </div>
+                    <div class="form-group">
+                        <label>Cantidad (U)</label>
+                        <input type="number" name="cantidad" required min="1" value="1" style="background: #e0f2fe; color: #0369a1;">
+                    </div>
+                </div>
+
+                <div id="section-produccion">
+                    <div class="radio-group">
+                        <label><input type="radio" name="tipo_pedido" value="medida" onchange="toggleMedida()"> ✂️ Cortina a Medida</label>
+                        <label><input type="radio" name="tipo_pedido" value="estandar" checked onchange="toggleMedida()"> 📦 Producto Estándar</label>
+                    </div>
+
+                    <div id="panel-estandar" class="form-group">
+                        <label>Seleccionar SKU del Catálogo</label>
+                        <input list="lista_skus" name="sku" id="input_sku_ajax" 
+                            placeholder="Escribí SKU o nombre para buscar..." 
+                            autocomplete="off" 
+                            oninput="buscarSkuAjax(this.value)">
+                        <datalist id="lista_skus"></datalist>
+                    </div>
+
+                    <div id="panel-medida" style="display: none; margin-bottom: 20px;">
+                        <div class="grid-medida">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Tipo de Cortina</label>
+                                <select name="med_tipo" class="medida-req" onchange="toggleLona2(this.value)">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="Roller">Simple</option>
+                                    <option value="Doble (Día y Noche)">Doble</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Ancho (cm)</label>
+                                <input type="number" step="0.1" name="med_ancho" class="medida-req" placeholder="Ej: 150">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Alto (cm)</label>
+                                <input type="number" step="0.1" name="med_alto" class="medida-req" placeholder="Ej: 210">
+                            </div>
+                            
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Lona 1 (Frente)</label>
+                                <select name="med_lona" class="medida-req">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="BO Apolo">BO Apolo</option>
+                                    <option value="Sunscreen">Sunscreen</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Color Lona 1</label>
+                                <input type="text" name="med_color" class="medida-req" placeholder="Ej: Blanca, Gris, Beige..." autocomplete="off">
+                            </div>
+
+                            <div class="form-group grupo_lona_2" style="margin-bottom: 0; display: none; background: #e0e7ff; padding: 5px; border-radius: 8px;">
+                                <label style="color: #4f46e5;">Lona 2 (Atrás)</label>
+                                <select name="med_lona2" id="input_lona_2" style="border-color: #a5b4fc;">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="BO Apolo">BO Apolo</option>
+                                    <option value="Sunscreen">Sunscreen</option>
+                                </select>
+                            </div>
+                            <div class="form-group grupo_lona_2" style="margin-bottom: 0; display: none; background: #e0e7ff; padding: 5px; border-radius: 8px;">
+                                <label style="color: #4f46e5;">Color Lona 2</label>
+                                <input type="text" name="med_color2" id="input_color_2" placeholder="Ej: Natural, Negra..." style="border-color: #a5b4fc;" autocomplete="off">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Lado Comando</label>
+                                <select name="med_comando" class="medida-req">
+                                    <option value="Derecho">Derecho</option>
+                                    <option value="Izquierdo">Izquierdo</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Tipo de Cadena</label>
+                                <select name="med_cadena" class="medida-req">
+                                    <option value="Plástica">Plástica</option>
+                                    <option value="Metálica">Metálica</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Peso de Cadena</label>
+                                <select name="med_peso" class="medida-req">
+                                    <option value="No" selected>No</option>
+                                    <option value="Si">Si</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Sistema / Caño</label>
+                                <select name="med_sistema" class="medida-req">
+                                    <option value="32mm">32mm</option>
+                                    <option value="38mm">38mm</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Observaciones Adicionales (Opcional)</label>
+                            <input type="text" name="med_obs" placeholder="Ej: Comando lado derecho, caída por delante, soporte doble..." style="background: #fff; font-weight: normal;">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="section-logistica" style="display: none;">
+                    <div style="background: #eff6ff; padding: 20px; border-radius: 12px; border: 1px solid #bfdbfe; margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 10px 0; color: #1e40af;">🚚 Venta Directa de Stock</h4>
+                        <p style="margin: 0 0 15px 0; font-size: 13px; color: #3b82f6;">Este pedido se enviará directamente al depósito para Picking.</p>
+                        
+                        <div class="form-group">
+                            <label>Buscar Producto en Depósito</label>
+                            <input list="lista_skus_log" name="sku_logistica" id="input_sku_log_ajax" 
+                                placeholder="Escribí SKU o nombre (Bicis, etc)..." 
+                                autocomplete="off" 
+                                oninput="buscarSkuAjax(this.value, 'lista_skus_log')">
+                            <datalist id="lista_skus_log"></datalist>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" style="background: #10b981; color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 16px; transition: 0.2s;">
+                    🚀 Enviar Pedido
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container" style="margin-top: 20px;">
+        <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">🕰️ Últimos pedidos cargados</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Detalle</th><th>Cant.</th><th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pedidos %}
+                <tr>
+                    <td style="color: #64748b;">{{ p.fecha_creacion.strftime('%d/%m %H:%M') }}</td>
+                    <td style="font-weight: bold;">{{ p.cliente }}</td>
+                    <td>
+                        {% if p.es_a_medida %}✂️ Medida
+                        {% elif p.estado == 'En Logística' %}🚚 Stock
+                        {% else %}📦 Estándar{% endif %}
+                    </td>
+                    <td style="font-size: 12px; color: #475569;">{{ p.sku if not p.es_a_medida else p.descripcion }}</td>
+                    <td style="text-align: center; font-weight: 900;">{{ p.cantidad }}</td>
+                    <td>
+                        {% if p.estado == 'Pendiente' %}
+                            <span style="background: #fef3c7; color: #d97706; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #fcd34d;">⏳ EN COLA</span>
+                        {% elif p.estado == 'Planificado' %}
+                            <span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bae6fd;">🏭 EN FÁBRICA</span>
+                        {% elif p.estado == 'En Logística' %}
+                            <span style="background: #eff6ff; color: #1e40af; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bfdbfe;">🚚 EN LOGÍSTICA</span>
+                        {% elif p.estado == 'Finalizado' %}
+                            <span style="background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bbf7d0;">✅ FINALIZADO</span>
+                        {% elif p.estado == 'Anulado' %}
+                            <span style="background: #fee2e2; color: #b91c1c; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #fecaca;">🚫 ANULADO</span>
+                        {% else %}
+                            <span style="background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800;">{{ p.estado }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function switchTab(destino) {
+            const btnProd = document.getElementById('btn-tab-produccion');
+            const btnLog = document.getElementById('btn-tab-logistica');
+            const secProd = document.getElementById('section-produccion');
+            const secLog = document.getElementById('section-logistica');
+            const inputDestino = document.getElementById('destino_pedido');
+
+            if (destino === 'produccion') {
+                btnProd.classList.add('active');
+                btnLog.classList.remove('active');
+                secProd.style.display = 'block';
+                secLog.style.display = 'none';
+                inputDestino.value = 'produccion';
+                toggleMedida(); 
+            } else {
+                btnLog.classList.add('active');
+                btnProd.classList.remove('active');
+                secLog.style.display = 'block';
+                secProd.style.display = 'none';
+                inputDestino.value = 'logistica';
+                
+                let inputsMedida = document.querySelectorAll('.medida-req');
+                inputsMedida.forEach(inp => inp.required = false);
+                document.getElementById('input_lona_2').required = false;
+                document.getElementById('input_color_2').required = false;
+                
+                document.getElementById('input_sku_ajax').required = false;
+                document.getElementById('input_sku_log_ajax').required = true;
+            }
+        }
+
+        // 🔥 FUNCIÓN ACTUALIZADA PARA MOSTRAR/OCULTAR LONA 2 Y COLOR 2 🔥
+        function toggleLona2(valorTipoCortina) {
+            let divsLona2 = document.querySelectorAll('.grupo_lona_2');
+            let inputLona2 = document.getElementById('input_lona_2');
+            let inputColor2 = document.getElementById('input_color_2');
+            
+            if (valorTipoCortina.includes('Doble')) {
+                divsLona2.forEach(div => div.style.display = 'block');
+                inputLona2.required = true;
+                inputColor2.required = true;
+            } else {
+                divsLona2.forEach(div => div.style.display = 'none');
+                inputLona2.required = false;
+                inputLona2.value = ''; 
+                inputColor2.required = false;
+                inputColor2.value = ''; 
+            }
+        }
+
+        function toggleMedida() {
+            let tipo = document.querySelector('input[name="tipo_pedido"]:checked').value;
+            let pEstandar = document.getElementById('panel-estandar');
+            let pMedida = document.getElementById('panel-medida');
+            let inputsMedida = document.querySelectorAll('.medida-req');
+            
+            if (document.getElementById('destino_pedido').value === 'produccion') {
+                if(tipo === 'estandar') {
+                    pEstandar.style.display = 'block'; 
+                    pEstandar.querySelector('input').required = true;
+                    pMedida.style.display = 'none'; 
+                    inputsMedida.forEach(inp => inp.required = false);
+                    document.getElementById('input_lona_2').required = false;
+                    document.getElementById('input_color_2').required = false;
+                } else {
+                    pEstandar.style.display = 'none'; 
+                    pEstandar.querySelector('input').required = false;
+                    pMedida.style.display = 'block'; 
+                    inputsMedida.forEach(inp => inp.required = true);
+                    
+                    let tipoActual = document.querySelector('select[name="med_tipo"]').value;
+                    toggleLona2(tipoActual);
+                }
+            }
+        }
+
+        let timeoutVentas;
+        function buscarSkuAjax(query, targetListId = 'lista_skus') {
+            clearTimeout(timeoutVentas);
+            const datalist = document.getElementById(targetListId);
+
+            if (query.length < 2) {
+                datalist.innerHTML = '';
+                return;
+            }
+
+            timeoutVentas = setTimeout(() => {
+                fetch(`/api/buscar_sku_ventas?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        datalist.innerHTML = ''; 
+                        data.forEach(prod => {
+                            const option = document.createElement('option');
+                            option.value = prod.sku;
+                            option.textContent = prod.descripcion;
+                            datalist.appendChild(option);
+                        });
+                    })
+                    .catch(err => console.error("Error en búsqueda AJAX:", err));
+            }, 250);
+        }
+        
+        window.onload = function() {
+            toggleMedida();
+        };
+    </script>
+</body>
+</html>

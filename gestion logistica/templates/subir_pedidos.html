@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <title>Carga de Hoja de Ruta</title>
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --success: #198754;
+            --danger: #dc3545;
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-radius: 16px;
+        }
+
+        html, body { max-width: 100vw; overflow-x: hidden; margin: 0; padding: 0; }
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text-main); 
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* NAVBAR RESPONSIVA */
+        .navbar { 
+            background-color: #0f172a; color: white; padding: 15px 25px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+        }
+        .navbar h2 { margin: 0; font-size: 22px; display: flex; align-items: center; gap: 10px; }
+        
+        .btn-volver { 
+            background: #334155; color: white; text-decoration: none; 
+            padding: 10px 20px; border-radius: 8px; font-weight: bold; 
+            font-size: 15px; transition: 0.2s; display: inline-flex; align-items: center;
+        }
+
+        .container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+
+        /* MENSAJES FLASH */
+        .flash-msg { padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 20px; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+
+        /* ZONA DE SUBIDA DE EXCEL */
+        .upload-card {
+            background: var(--card-bg);
+            border: 2px dashed var(--success);
+            border-radius: var(--border-radius);
+            padding: 35px 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(25, 135, 84, 0.05);
+        }
+        .upload-card h3 { margin: 0 0 10px 0; color: #146c43; font-size: 24px; }
+        .upload-card p { color: var(--text-muted); font-size: 15px; margin-bottom: 20px; line-height: 1.5; }
+        .upload-card code { background: #e2e8f0; padding: 3px 6px; border-radius: 4px; color: #334155; font-weight: bold; }
+        
+        .btn-outline {
+            display: inline-flex; align-items: center; gap: 8px;
+            color: var(--success); text-decoration: none; font-weight: bold;
+            border: 2px solid var(--success); padding: 10px 20px;
+            border-radius: 8px; transition: 0.2s; margin-bottom: 20px;
+            background: white;
+        }
+        .btn-outline:hover { background: var(--success); color: white; }
+
+        .form-upload { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        
+        input[type="file"] {
+            background: #f8f9fa; padding: 12px; border: 1px solid #cbd5e1;
+            border-radius: 8px; font-size: 15px; color: #475569;
+            width: 100%; max-width: 350px; cursor: pointer;
+        }
+        
+        .btn-submit {
+            background: var(--success); color: white; border: none;
+            padding: 14px 30px; border-radius: 8px; font-weight: bold;
+            font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(25, 135, 84, 0.3);
+            transition: 0.2s; width: 100%; max-width: 350px; display: inline-flex; justify-content: center;
+        }
+        .btn-submit:disabled { background: #6c757d; cursor: not-allowed; box-shadow: none; }
+
+        /* HEADER DE TAREAS */
+        .section-header { 
+            margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; 
+            padding-bottom: 15px; display: flex; justify-content: space-between; 
+            align-items: center; flex-wrap: wrap; gap: 10px;
+        }
+        .section-header h3 { margin: 0; font-size: 22px; color: #334155; }
+        .badge-count { 
+            background: #64748b; color: white; padding: 6px 14px; 
+            border-radius: 30px; font-size: 15px; font-weight: bold; 
+        }
+
+        /* GRID DE TAREAS PENDIENTES */
+        .tareas-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;
+        }
+
+        .tarea-card {
+            background: var(--card-bg); border-radius: 12px; padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
+            display: flex; flex-direction: column; position: relative;
+        }
+        .tarea-card:hover { border-color: #cbd5e1; }
+
+        .tarea-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .badge-zona { background: #0ea5e9; color: white; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 800; }
+        .tarea-fecha { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+
+        .tarea-sku { font-size: 20px; font-weight: 900; color: var(--text-main); margin: 0 0 5px 0; }
+        .tarea-desc { font-size: 14px; color: #475569; margin-bottom: 15px; line-height: 1.3; font-weight: 500; }
+
+        .tarea-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .stat-item { 
+            background: #f1f5f9; color: #475569; padding: 6px 10px; 
+            border-radius: 6px; font-size: 13px; font-weight: 700; border: 1px solid #e2e8f0;
+        }
+        .stat-qty { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-size: 14px; }
+        .stat-ubi { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+
+        .btn-anular {
+            background: #fef2f2; color: var(--danger); border: 1px solid #fecaca;
+            padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer;
+            font-size: 14px; width: 100%; transition: 0.2s; display: inline-flex; 
+            justify-content: center; align-items: center; gap: 5px; margin-top: auto;
+        }
+        .btn-anular:hover { background: var(--danger); color: white; }
+
+        /* ESTADO VACÍO */
+        .empty-state { 
+            text-align: center; padding: 50px 20px; background: white; 
+            border-radius: 12px; border: 2px dashed #cbd5e1; color: #64748b; 
+            grid-column: 1 / -1; 
+        }
+
+        /* CELULARES */
+        @media (max-width: 768px) {
+            .navbar { padding: 15px; flex-direction: column; text-align: center; gap: 12px; }
+            .navbar h2 { font-size: 20px; }
+            .btn-volver { width: 100%; justify-content: center; padding: 12px; }
+            .container { padding: 15px; }
+            .upload-card { padding: 25px 15px; }
+            .section-header { flex-direction: column; text-align: center; gap: 12px; }
+            .tareas-grid { grid-template-columns: 1fr; gap: 12px; }
+            .btn-anular { padding: 14px; font-size: 16px; } /* Más grande para el dedo */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2>📥 Carga de Hoja de Ruta</h2>
+        <a href="{{ url_for('logistica') }}" class="btn-volver">← Volver al Mapa</a>
+    </div>
+
+    <div class="container">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="upload-card">
+            <h3>Subir Tareas desde Excel</h3>
+            <p>
+                Asegúrate de que la primera fila de tu Excel tenga estos títulos exactos (sin tildes):<br>
+                <code>Fecha</code> | <code>Zona</code> | <code>Producto</code> | <code>Ubicacion</code> | <code>SKU</code> | <code>Descripcion</code> | <code>Cantidad</code>
+            </p>
+            
+            <a href="{{ url_for('descargar_plantilla_pedidos') }}" class="btn-outline">
+                📥 Descargar Plantilla Excel
+            </a>
+            
+            <form method="POST" enctype="multipart/form-data" class="form-upload" onsubmit="
+                const btn = this.querySelector('.btn-submit');
+                btn.innerHTML = '⏳ Procesando Excel...';
+                btn.disabled = true;
+                return true;
+            ">
+                <input type="file" name="archivo_excel" accept=".xlsx, .xls" required>
+                <button type="submit" class="btn-submit">Subir y Generar Tareas</button>
+            </form>
+        </div>
+
+        <div class="section-header">
+            <h3>Tareas Pendientes en Cola</h3>
+            <div class="badge-count">{{ tareas|length }} Registros</div>
+        </div>
+
+        <div class="tareas-grid">
+            {% if tareas %}
+                {% for t in tareas %}
+                <div class="tarea-card">
+                    <div class="tarea-header">
+                        <span class="badge-zona">{{ t.zona }}</span>
+                        <span class="tarea-fecha">{{ t.fecha }}</span>
+                    </div>
+                    
+                    <h4 class="tarea-sku">{{ t.sku }}</h4>
+                    <div class="tarea-desc">
+                        <strong>{{ t.producto }}</strong><br>
+                        <small style="color: #64748b;">{{ t.descripcion }}</small>
+                    </div>
+                    
+                    <div class="tarea-stats">
+                        <div class="stat-item stat-qty">📦 {{ t.cantidad }} un.</div>
+                        <div class="stat-item stat-ubi">📍 {{ t.ubicacion_excel.split('-ID')[0] if t.ubicacion_excel else 'VENTAS' }}</div>
+                        <div class="stat-item">⏳ {{ t.estado }}</div>
+                    </div>
+
+                    {% if current_user.rol in ['admin', 'ruteador', 'Ruteador', 'jefe_logistica'] %}
+                    <form action="{{ url_for('anular_tarea', tarea_id=t.id) }}" method="POST" onsubmit="return confirm('¿Estás seguro de que querés anular esta tarea del SKU {{ t.sku }}?');" style="margin: 0; margin-top: auto;">
+                        <button type="submit" class="btn-anular">🗑️ Anular Tarea</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <span style="font-size: 55px; display: block; margin-bottom: 10px;">📄</span>
+                    <div style="font-size: 22px; font-weight: bold; color: #334155; margin-bottom: 5px;">Sin tareas en cola</div>
+                    <p style="margin: 0; font-size: 16px;">Sube un archivo Excel para generar nuevas hojas de ruta.</p>
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <script>
+        // Anti-caché si vuelven para atrás en el celular
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                window.location.reload();
+            }
+        });
+    </script>
+</body>
+</html>

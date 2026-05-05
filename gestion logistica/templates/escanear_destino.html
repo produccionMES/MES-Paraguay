@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner de Movimiento</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .scanner-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 450px; width: 100%; text-align: center; }
+        .producto-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 25px; border-left: 5px solid #0d6efd; text-align: left; }
+        
+        .input-scan { 
+            width: 100%; padding: 15px; font-size: 24px; text-align: center; 
+            border: 3px solid #0d6efd; border-radius: 10px; box-sizing: border-box; 
+            outline: none; transition: 0.3s; margin-bottom: 10px; font-weight: bold; 
+            background-color: #f0f7ff;
+        }
+        
+        .btn-confirmar { 
+            background: #198754; color: white; border: none; padding: 18px; 
+            width: 100%; font-size: 20px; font-weight: bold; border-radius: 10px; 
+            cursor: pointer; transition: 0.3s; margin-top: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn-confirmar:hover { background: #146c43; transform: translateY(-2px); }
+        .btn-confirmar:active { transform: translateY(0); }
+
+        /* Nuevos botones de corrección */
+        .btn-limpiar {
+            background: #ffc107; color: #000; border: none; padding: 12px; 
+            width: 100%; font-size: 16px; font-weight: bold; border-radius: 10px; 
+            cursor: pointer; transition: 0.3s; margin-top: 10px;
+        }
+        .btn-limpiar:hover { background: #e0a800; }
+
+        .btn-cancelar {
+            background: #dc3545; color: white; border: none; padding: 12px; 
+            width: 100%; font-size: 16px; font-weight: bold; border-radius: 10px; 
+            cursor: pointer; transition: 0.3s; margin-top: 10px; display: block; text-decoration: none;
+        }
+        .btn-cancelar:hover { background: #bb2d3b; }
+
+        .input-cant { width: 80px; padding: 10px; text-align: center; font-size: 18px; border: 2px solid #ccc; border-radius: 8px; font-weight: bold; }
+        .flash-msg { padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 20px; font-size: 14px; }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+    </style>
+</head>
+<body>
+
+    <div class="scanner-card">
+        <h2 style="margin-top: 0; color: #333;">📦 Confirmar Traslado</h2>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash-msg msg-error">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="producto-info">
+            <div style="font-size: 22px; font-weight: 900; color: #000;">{{ item.producto_detalle.sku }}</div>
+            <div style="font-size: 14px; color: #444;">{{ item.producto_detalle.descripcion }}</div>
+            <div style="margin-top: 10px; font-size: 13px; color: #666;">
+                <strong>📍 Origen:</strong> {{ item.ubicacion.codigo_unico }}
+            </div>
+        </div>
+
+        <form id="form-movimiento" action="{{ url_for('procesar_movimiento_scanner', item_id=item.id) }}" method="POST">
+            
+            <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px;">
+                <label style="font-weight: bold;">Cantidad:</label>
+                <input type="number" name="cantidad" value="{{ item.cantidad }}" max="{{ item.cantidad }}" min="1" class="input-cant">
+            </div>
+
+            <p style="font-size: 13px; color: #666; margin-bottom: 5px;">1. Escaneá el destino:</p>
+            <input type="text" id="codigo_destino" name="codigo_destino" class="input-scan" placeholder="---" required autofocus autocomplete="off">
+            
+            <button type="button" class="btn-limpiar" onclick="limpiarEscaneo()">🔄 Borrar lectura y reescanear Destino</button>
+
+            <p style="font-size: 13px; color: #666; margin-top: 15px; margin-bottom: 5px;">2. Verificá y confirmá:</p>
+            <button type="submit" id="btn-submit" class="btn-confirmar">✅ CONFIRMAR MOVIMIENTO</button>
+        </form>
+
+        <a href="{{ url_for('detalle_ubicacion', rack_id=item.ubicacion.rack_id, nivel=item.ubicacion.nivel, pos=item.ubicacion.posicion) }}" class="btn-cancelar">🔙 Me equivoqué de Origen (Cancelar)</a>
+    </div>
+
+    <script>
+        const inputScan = document.getElementById('codigo_destino');
+        const form = document.getElementById('form-movimiento');
+        let lastKeyTime = Date.now();
+
+        // 🛡️ Bloqueo de escritura manual y validación de velocidad (Pistolas/PDA)
+        inputScan.addEventListener('input', function(e) {
+            let currentTime = Date.now();
+            if (this.value.length > 1) {
+                let timeDiff = currentTime - lastKeyTime;
+                if (timeDiff > 60) { this.value = ''; return; }
+            }
+            lastKeyTime = currentTime;
+        });
+
+        // 🔥 Evita que el "Enter" automático del scanner envíe el formulario
+        inputScan.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Detiene el envío automático
+                inputScan.blur();   // Quita el foco para que el teclado del celu se baje
+                console.log("Lectura completada, esperando clic del usuario.");
+            }
+        });
+
+        // 🔄 Función para limpiar el input si el operario se equivocó
+        function limpiarEscaneo() {
+            // Recarga la página al instante. Esto reinicia la cámara de html5-qrcode
+            // y por nuestro window.onload, vuelve a clavar el foco en el cajón.
+            window.location.reload();
+        }
+
+        // 🎯 Foco automático SOLO al entrar a la página (No roba clicks de la cámara)
+        window.onload = function() {
+            inputScan.focus();
+        };
+    </script>
+
+</body>
+</html>

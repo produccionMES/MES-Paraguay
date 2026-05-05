@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial de Reparaciones - Taller</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        .contenedor { max-width: 1550px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #198754; padding-bottom: 15px; margin-bottom: 25px; }
+        .titulo { margin: 0; color: #157347; }
+        .btn-volver { text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; color: white; transition: 0.3s; background: #6f42c1; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 13px; }
+        th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; vertical-align: middle; }
+        th { background-color: #f8f9fa; color: #495057; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; }
+        tr:hover { background-color: #fcfcfc; }
+
+        .badge-resolucion { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; }
+        
+        .tiempo-box { font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: bold; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+        .t-neto { color: #055160; background: #e7faff; border: 1px solid #b6effb; }
+        .t-parada { color: #856404; background: #fff3cd; border: 1px solid #ffeeba; }
+        
+        .hora-txt { font-weight: bold; color: #444; }
+        .fecha-txt { color: #999; font-size: 10px; }
+
+        .input-filtro { height: 34px; border-radius: 6px; border: 1px solid #ccc; padding: 0 8px; font-size: 13px; outline: none; }
+        .input-filtro:focus { border-color: #198754; box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.1); }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="header">
+        <h2 class="titulo">📊 Rendimiento del Taller</h2>
+        <a href="{{ url_for('taller_posventa') }}" class="btn-volver">← Volver al Taller</a>
+    </div>
+
+    <div style="background: #f8f9fa; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #dee2e6; display: flex; gap: 20px; align-items: center;">
+        <form method="GET" action="{{ url_for('historial_taller') }}" style="display: flex; gap: 12px; align-items: center; flex-grow: 1; flex-wrap: wrap;">
+            
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label style="font-size: 12px; font-weight: bold; color: #555;">📦 Producto:</label>
+                <input type="text" name="sku" value="{{ sku_sel or '' }}" placeholder="Buscar SKU..." class="input-filtro" style="width: 180px;">
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label style="font-size: 12px; font-weight: bold; color: #555;">👷 Técnico:</label>
+                <select name="tecnico" class="input-filtro" style="width: 180px; background: white;">
+                    <option value="">-- Todos --</option>
+                    {% for t in tecnicos %}
+                    <option value="{{ t }}" {% if t == tecnico_sel %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label style="font-size: 12px; font-weight: bold; color: #555;">📅 Fecha:</label>
+                <input type="date" name="fecha" value="{{ fecha_sel }}" class="input-filtro" style="background: white;">
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-left: auto;"> 
+                {% set estilo_btn_base = "height: 34px; padding: 0 16px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; border: none; text-decoration: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box;" %}
+                <button type="submit" style="{{ estilo_btn_base }} background-color: #198754; color: white;">🔍 Filtrar</button>
+                <a href="{{ url_for('historial_taller') }}" style="{{ estilo_btn_base }} background-color: #e9ecef; color: #333; border: 1px solid #ced4da;">Limpiar</a>
+            </div>
+        </form>
+
+        <div style="background: white; padding: 8px 15px; border-radius: 8px; border: 2px solid #6f42c1; text-align: center; min-width: 100px;">
+            <div style="font-size: 9px; font-weight: 800; color: #6f42c1; text-transform: uppercase;">Unidades</div>
+            <div style="font-size: 20px; font-weight: 800; color: #333; line-height: 1;">{{ total_dia }}</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Técnico</th>
+                <th>SKU / Producto</th>
+                <th style="text-align: center;">Cant.</th>
+                <th>Inicio Real</th>
+                <th>Finalización</th>
+                <th style="text-align: center; background-color: #f0faff;">⏱️ Tiempo Neto</th>
+                <th style="text-align: center; background-color: #fff9eb;">☕ Paradas</th>
+                <th>Diagnóstico / Fallas</th>
+                <th style="text-align: center;">Resolución</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in reparaciones %}
+            <tr>
+                <td><strong>{{ r.tecnico }}</strong></td>
+                <td><small style="color: #666; font-weight: bold;">{{ r.sku }}</small></td>
+                <td style="text-align: center; font-weight: bold;">{{ r.cantidad }}</td>
+                
+                <td>
+                    {% if r.fecha_primer_inicio %}
+                        <span class="hora-txt">{{ r.fecha_primer_inicio.strftime('%H:%M') }}</span><br>
+                        <span class="fecha-txt">{{ r.fecha_primer_inicio.strftime('%d/%m/%Y') }}</span>
+                    {% else %}
+                        <span style="color: #ccc;">Sin dato</span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if r.fecha_fin %}
+                        <span class="hora-txt">{{ r.fecha_fin.strftime('%H:%M') }}</span><br>
+                        <span class="fecha-txt">{{ r.fecha_fin.strftime('%d/%m/%Y') }}</span>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+
+                {% if r.fecha_primer_inicio and r.fecha_fin %}
+                    {% set total_segundos = (r.fecha_fin - r.fecha_primer_inicio).total_seconds() | int %}
+                {% else %}
+                    {% set total_segundos = 0 %}
+                {% endif %}
+                
+                {% set neto_segundos = r.tiempo_acumulado or 0 %}
+                {% set parada_segundos = total_segundos - neto_segundos %}
+                {% if parada_segundos < 0 %}{% set parada_segundos = 0 %}{% endif %}
+
+                <td style="text-align: center; background-color: #f0faff;">
+                    <div class="tiempo-box t-neto">
+                        {% set m = neto_segundos // 60 %}{% set s = neto_segundos % 60 %}
+                        {{ m }}m {{ s }}s
+                    </div>
+                </td>
+
+                <td style="text-align: center; background-color: #fff9eb;">
+                    <div class="tiempo-box t-parada">
+                        {% set m_p = parada_segundos // 60 %}{% set s_p = parada_segundos % 60 %}
+                        {% if m_p >= 60 %}
+                            {{ m_p // 60 }}h {{ m_p % 60 }}m
+                        {% else %}
+                            {{ m_p }}m {{ s_p }}s
+                        {% endif %}
+                    </div>
+                </td>
+
+                <td style="font-size: 11px; color: #555; max-width: 200px;">{{ r.diagnostico or 'Sin detalles' }}</td>
+
+                <td style="text-align: center;">
+                    {% if r.resolucion_calidad == 'apto' %} 
+                        <span class="badge-resolucion" style="color: #198754;">✅ APTO</span>
+                    {% elif r.resolucion_calidad == 'outlet' %} 
+                        <span class="badge-resolucion" style="color: #0dcaf0;">💰 OUTLET</span>
+                    {% else %} 
+                        <span class="badge-resolucion" style="color: #dc3545;">⚠️ NO APTO</span> 
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

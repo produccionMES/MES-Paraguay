@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <title>WMS - Centro de Control Logística</title>
+    <style>
+        /* 1. BLOQUEO DE PANTALLA GENERAL */
+        html, body { 
+            margin: 0; padding: 0; 
+            width: 100vw; max-width: 100%; 
+            overflow-x: hidden; 
+            background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, sans-serif; color: #333; 
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: white; padding: 15px 20px; border-bottom: 2px solid #e9ecef; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-radius: 8px; }
+        .btn-oscuro-volver { background-color: #1e293b; color: #ffffff !important; text-decoration: none !important; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; display: inline-block; border: 1px solid #0f172a; text-align: center; }
+
+        .contenedor { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 15px; }
+
+        .table-responsive {
+            display: block; width: 100%; overflow-x: auto; 
+            -webkit-overflow-scrolling: touch; background: white;
+            border: 1px solid #e9ecef; border-radius: 8px; margin-top: 10px;
+        }
+
+        table { width: 100%; min-width: 750px; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #e9ecef; padding: 15px; text-align: center; vertical-align: middle; white-space: nowrap; }
+        th { background-color: #f8f9fa; color: #495057; font-size: 0.95em; font-weight: 700; }
+        
+        .alerta-picking { background: #e0f2fe; color: #0369a1; padding: 15px 20px; border-radius: 8px; border: 2px solid #bae6fd; margin-bottom: 20px; text-align: center; font-size: 1.1em; }
+        .numero-gigante { font-size: 28px; font-weight: 900; background: #0284c7; color: white; padding: 4px 12px; border-radius: 8px; margin: 0 5px; }
+
+        /* 🔥 CLASES MEJORADAS PARA EL CONTENEDOR DE ACCIONES */
+        .acciones-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px; /* Espacio entre la cámara, el input, la cantidad y el botón */
+        }
+
+        .input-scan-wrapper {
+            display: flex;
+            align-items: center;
+            border: 2px dashed #adb5bd;
+            border-radius: 6px;
+            background-color: #f8f9fa;
+            overflow: hidden;
+            height: 40px;
+        }
+        
+        .input-scan-wrapper.success { border: 2px solid #198754 !important; background-color: #d1e7dd !important; }
+
+        .btn-camara-inline {
+            background: transparent;
+            border: none;
+            padding: 0 10px;
+            cursor: pointer;
+            border-right: 1px solid #dee2e6;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-camara-inline:hover { background-color: #e9ecef; }
+
+        .input-scan-nuevo { width: 100px; padding: 0 10px; border: none; font-size: 14px; font-weight: bold; color: #6c757d; outline: none; background: transparent; text-align: center; height: 100%; }
+        .input-scan-nuevo.success { color: #0f5132; }
+
+        .input-qty-nuevo { width: 70px; padding: 0 8px; height: 40px; border: 1px solid #ced4da; border-radius: 6px; font-size: 16px; font-weight: bold; text-align: center; outline: none; background: white; }
+        .input-qty-nuevo:disabled { background-color: #e9ecef !important; border-color: #dee2e6 !important; color: #adb5bd !important; cursor: not-allowed; }
+
+        .btn-extraer-nuevo { background-color: #198754; color: white; border: none; height: 40px; padding: 0 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; white-space: nowrap; transition: 0.2s; }
+        .btn-extraer-nuevo:disabled { background-color: #ced4da !important; color: #f8f9fa !important; cursor: not-allowed; }
+
+        #pantalla-exito {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            background-color: #198754; z-index: 9999; flex-direction: column; justify-content: center; 
+            align-items: center; color: white; animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+        @media (max-width: 768px) {
+            .navbar { flex-direction: column; gap: 10px; text-align: center; }
+            .btn-oscuro-volver { padding: 12px; font-size: 16px; width: 100%; text-align: center; }
+            .acciones-container { flex-direction: row; flex-wrap: wrap; }
+            .input-scan-wrapper { width: 100%; }
+            .input-scan-nuevo { width: 100%; }
+            .input-qty-nuevo { width: 80px !important; }
+            .btn-extraer-nuevo { flex-grow: 1; }
+        }
+    </style>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+
+    <div id="pantalla-exito">
+        <div style="font-size: 120px; margin-bottom: 10px;">✅</div>
+        <h1 style="font-size: 38px; text-align: center; margin: 0; padding: 0 20px;">¡COMPLETADO!</h1>
+        <p style="font-size: 22px; text-align: center; margin-top: 15px; opacity: 0.9;">Volviendo a la ruta...</p>
+    </div>
+
+    <div class="navbar">
+        <h2 style="margin: 0; font-size: 22px;">🚚 Preparar Despacho</h2>
+        {% if lote_nombre %}
+            <a href="{{ url_for('picking_detalle', lote=lote_nombre) }}" class="btn-oscuro-volver" tabindex="-1">← Volver a la Ruta</a>
+        {% else %}
+            <a href="{{ url_for('logistica') }}" class="btn-oscuro-volver" tabindex="-1">← Volver al Mapa</a>
+        {% endif %}
+    </div>
+
+    <div id="modal-camara" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 10000; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 15px; border-radius: 12px; width: 90%; max-width: 500px; text-align: center;">
+            <h3 style="margin-top: 0;">Apunta al código</h3>
+            <div id="lector-video" style="width: 100%; margin-bottom: 15px;"></div>
+            <button onclick="cerrarCamaraCelular()" style="background: #dc2626; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; width: 100%; cursor: pointer;">
+                ❌ Cancelar
+            </button>
+        </div>
+    </div>
+
+    <div class="contenedor">
+        {% set cantidad_faltante = request.args.get('cantidad_hoja') %}
+        {% set lote_nombre = request.args.get('lote_nombre') %}
+    
+    {% if cantidad_faltante %}
+    <div class="alerta-picking">
+        📦 <strong>MODO PICKING:</strong> Faltan recolectar <span class="numero-gigante">{{ cantidad_faltante }}</span> unidades.
+    </div>
+    
+    {# 🔥 ACÁ ESTÁ EL BOTÓN DE PÁNICO PARA SOLTAR LA TAREA 🔥 #}
+    {% if tarea_actual_id %}
+    <div style="margin-bottom: 20px;">
+        <a href="{{ url_for('soltar_tarea', tarea_id=tarea_actual_id) }}" 
+           style="display: block; background: #dc3545; color: white; text-align: center; padding: 15px; border-radius: 8px; text-decoration: none; font-weight: bold; border: 2px solid #a71d2a;"
+           onclick="return confirm('¿Seguro que quieres soltar este pedido para que lo haga otro compañero?');">
+           ⚠️ NO PUEDO HACER ESTE PEDIDO (Soltar y Volver)
+        </a>
+    </div>
+    {% endif %}
+    
+    {% endif %}
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div style="margin-bottom: 20px;">
+        {% for message in messages %}
+          <div style="background-color: #f0fdf4; color: #166534; padding: 15px; border: 2px solid #bbf7d0; border-radius: 8px; font-weight: bold; text-align: center;">
+            {{ message }}
+          </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% if not cantidad_faltante %}
+    <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 15px; align-items: end;">
+            <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">¿Qué buscamos? (SKU/EAN)</label>
+                <input type="text" id="manual_sku_input" value="{{ sku if sku else '' }}" placeholder="Escanear producto..." 
+                       style="width: 100%; padding: 12px; border: 2px solid #0d6efd; border-radius: 8px; font-size: 16px;">
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" onclick="buscarSkuManual()" style="background: #0d6efd; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer;">🔍 BUSCAR</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if sku %}
+        <h3 style="border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Resultados para: <span style="color: #0d6efd;">{{ sku }}</span></h3>
+        
+        {% if not resultados %}
+            <div style="background: #fffbeb; color: #92400e; padding: 20px; border-radius: 8px; border: 2px solid #fcd34d; text-align: center; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 1.3em;">⚠️ Stock insuficiente en Piso</h4>
+                <p style="margin: 0 0 15px 0; font-size: 1.1em;">
+                    No hay unidades disponibles en zona de picking para <strong>{{ sku }}</strong>.
+                    {% if cantidad_faltante %}
+                        <br><span style="color: #b45309;">(Faltan {{ cantidad_faltante }} unidades para completar la ruta).</span>
+                    {% endif %}
+                </p>
+                
+                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    {% if stock_reserva and stock_reserva > 0 %}
+                        <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; border: 2px solid #bae6fd; width: 100%;">
+                            <p style="margin: 0 0 10px 0; color: #0369a1; font-weight: bold; font-size: 1.1em;">🏗️ Mercadería detectada en Reserva (Altura)</p>
+                            <p style="margin: 0 0 15px 0; color: #64748b; font-size: 0.95em;">Hay <strong>{{ stock_reserva }}</strong> unidades en las posiciones de altura.</p>
+                            <form action="{{ url_for('solicitar_reposicion') }}" method="POST">
+                                <input type="hidden" name="sku" value="{{ sku }}">
+                                <input type="hidden" name="cantidad_faltante" value="{{ cantidad_faltante if cantidad_faltante else 1 }}">
+                                <input type="hidden" name="origen_reserva" value="{{ texto_reserva }}">
+                                <input type="hidden" name="destino_piso" value="{{ ubi_piso_sugerida }}">
+                                <button type="submit" class="btn-oscuro-volver" style="background: #0284c7; border-color: #0369a1; cursor: pointer; width: 100%; font-size: 16px; padding: 15px;">📢 AVISAR AL CLARKISTA (Reponer Piso)</button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <div style="background: #ffedd5; padding: 15px; border-radius: 8px; border: 1px solid #fdba74; width: 100%;">
+                            <p style="margin: 0 0 10px 0; color: #c2410c; font-weight: bold;">🚨 Quiebre total (Stock 0 en todo el depósito)</p>
+                            <form action="{{ url_for('solicitar_produccion') }}" method="POST">
+                                <input type="hidden" name="sku" value="{{ sku }}">
+                                <input type="hidden" name="cantidad" value="{{ cantidad_faltante if cantidad_faltante else 1 }}">
+                                <input type="hidden" name="lote" value="{{ lote_nombre if lote_nombre else 'Pedido Manual' }}">
+                                <button type="submit" class="btn-oscuro-volver" style="background: #ea580c; border-color: #c2410c; cursor: pointer;">🏭 Pedir Urgente a Producción</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+        {% else %}
+            {% set has_exp = namespace(found=false) %}
+            {% for r in resultados %}
+                {% if r.fecha_vencimiento %}{% set has_exp.found = true %}{% endif %}
+            {% endfor %}
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding-left: 25px;">Ubicación a escanear</th>
+                            <th>Stock</th>
+                            <th>Acción de Despacho</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in resultados %}
+                        {% set max_posible = item.cantidad if (cantidad_faltante and item.cantidad < cantidad_faltante|int) else (cantidad_faltante|int if cantidad_faltante else item.cantidad) %}
+                        
+                        {# BLOQUEO: Solo si hay vencimientos y NO es la primera fila #}
+                        {% set fila_bloqueada = false %}
+                        {% if has_exp.found and not loop.first %}
+                            {% set fila_bloqueada = true %}
+                        {% endif %}
+                        
+                        <tr style="{% if fila_bloqueada %}background-color: #f8fafc; opacity: 0.6;{% endif %}">
+                            <td style="text-align: left; padding-left: 25px;">
+                                {% set rack_nombre = item.ubicacion.rack.nombre.replace("ESTANTERÍA ", "Est. ") %}
+                                
+                                {% set loc_visual = rack_nombre %} 
+                                
+                                {% set fecha_str = " ⏳ Vence: " ~ item.fecha_vencimiento if item.fecha_vencimiento else "" %}
+                                
+                                <div style="font-size: 1.2em; font-weight: bold; color: {% if fila_bloqueada %}#94a3b8{% else %}#0f172a{% endif %};">
+                                    {% if not fila_bloqueada %}⭐{% endif %} {{ loc_visual }}
+                                </div>
+                                
+                                <div style="font-size: 1em; color: #64748b; margin-top: 6px;">
+                                    Código: 
+                                    <strong id="target-{{ item.id }}" class="{% if fila_bloqueada %}locked-target{% endif %}" style="background: #e2e8f0; padding: 4px 10px; border-radius: 6px; color: #0f172a; font-size: 1.2em; border: 1px solid #cbd5e1;">
+                                        {% if item.sub_ubicacion and item.sub_ubicacion != 'General' %}
+                                            {{ item.sub_ubicacion }}
+                                        {% else %}
+                                            {{ item.ubicacion.codigo_unico.split('-ID')[0] }}
+                                        {% endif %}
+                                    </strong>
+                                    <span style="color: #dc2626; font-weight: bold; margin-left: 8px;">{{ fecha_str }}</span>
+                                </div>
+                                
+                                {% if fila_bloqueada %}
+                                    <div style="color: #dc2626; font-size: 0.85em; font-weight: bold; margin-top: 8px; display: inline-block; background: #fee2e2; padding: 2px 8px; border-radius: 4px; border: 1px solid #fecaca;">
+                                        🔒 Agotar vencimiento anterior primero
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td style="font-weight: 800; font-size: 1.3em;">{{ item.cantidad }}</td>
+                            <td>
+                                <div class="acciones-container" id="area-{{ item.id }}" data-url="{{ url_for('descontar_item', item_id=item.id, cantidad_hoja=cantidad_faltante, lote_nombre=lote_nombre) }}">
+                                    
+                                    <div class="input-scan-wrapper {% if fila_bloqueada %}locked{% endif %}" style="{% if fila_bloqueada %}background-color: #e2e8f0; cursor: not-allowed;{% endif %}">
+                                        {% if not fila_bloqueada %}
+                                            <button type="button" class="btn-camara-inline" onclick="abrirCamaraCelular()" title="Escanear ubicación">
+                                                📷
+                                            </button>
+                                        {% endif %}
+                                        
+                                        <input type="text" id="scan-{{ item.id }}" class="input-scan-nuevo" 
+                                               placeholder="{% if fila_bloqueada %}Bloqueado{% else %}Láser...{% endif %}" 
+                                               readonly tabindex="-1" 
+                                               {% if fila_bloqueada %}data-locked="true"{% endif %}>
+                                    </div>
+
+                                    <input type="number" id="qty-{{ item.id }}" value="{{ max_posible if cantidad_faltante else 1 }}" max="{{ max_posible }}" min="1" class="input-qty-nuevo" disabled>
+
+                                    <button type="button" id="btn-{{ item.id }}" class="btn-extraer-nuevo" onclick="enviarFinal('{{ item.id }}')" tabindex="-1" disabled>📦 Extraer</button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    {% endif %}
+    </div>
+
+<script>
+let bufferZebra = "";
+let timeoutZebra;
+let lastScanTime = 0; 
+
+// Lógica de pistola láser
+window.addEventListener('keydown', function(e) {
+    const isSearchBox = (e.target.id === 'manual_sku_input');
+    const isQtyBox = e.target.classList.contains('input-qty-nuevo');
+
+    if (isSearchBox || isQtyBox) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (isSearchBox) buscarSkuManual();
+            if (isQtyBox) {
+                if (Date.now() - lastScanTime < 800) return;
+                const itemId = e.target.id.replace('qty-', '');
+                enviarFinal(itemId);
+            }
+        }
+        return;
+    }
+
+    if (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace') {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    if (e.key.length > 1 && e.key !== 'Enter') return;
+
+    if (e.key === 'Enter') {
+        clearTimeout(timeoutZebra);
+        procesarEscaneoGlobal(bufferZebra.trim().toUpperCase());
+        bufferZebra = "";
+    } else {
+        bufferZebra += e.key;
+        clearTimeout(timeoutZebra);
+        timeoutZebra = setTimeout(() => {
+            if (bufferZebra.length > 0) {
+                procesarEscaneoGlobal(bufferZebra.trim().toUpperCase());
+                bufferZebra = "";
+            }
+        }, 100);
+    }
+}, true);
+
+// Lógica que conecta la cámara o la pistola con el input
+function procesarEscaneoGlobal(codigoEscaneado) {
+    if (!codigoEscaneado) return;
+    let encontrado = false;
+    let escaneoBloqueado = false;
+
+    const targets = document.querySelectorAll('[id^="target-"]');
+    
+    for (let target of targets) {
+        const esperado = target.innerText.trim().toUpperCase();
+        
+        if (codigoEscaneado === esperado) {
+            if (target.classList.contains('locked-target')) {
+                escaneoBloqueado = true;
+                continue; 
+            }
+
+            const itemId = target.id.replace('target-', '');
+            const scanBox = document.getElementById('scan-' + itemId);
+            const wrapperBox = scanBox.closest('.input-scan-wrapper'); // Agarramos el contenedor visual
+            const qtyBox = document.getElementById('qty-' + itemId);
+            const btnBox = document.getElementById('btn-' + itemId);
+
+            if (scanBox && scanBox.readOnly && !scanBox.hasAttribute('data-locked')) {
+                encontrado = true;
+                lastScanTime = Date.now();
+                scanBox.value = codigoEscaneado;
+                
+                // Le damos color verde al input completo
+                scanBox.classList.add('success');
+                wrapperBox.classList.add('success');
+                
+                qtyBox.disabled = false;
+                btnBox.disabled = false;
+                setTimeout(() => { qtyBox.focus(); qtyBox.select(); }, 100);
+                break; 
+            }
+        }
+    }
+
+    if (!encontrado) {
+        if (escaneoBloqueado) {
+            alert("🔒 ESTANTE BLOQUEADO (FEFO)\n\nEl sistema exige que primero agotes el lote con vencimiento más cercano.");
+        } else {
+            alert("⚠️ UBICACIÓN NO ENCONTRADA\n\nEscaneaste: " + codigoEscaneado);
+        }
+    }
+}
+
+function buscarSkuManual() {
+    const sku = document.getElementById('manual_sku_input').value;
+    if (!sku) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('sku', sku);
+    url.searchParams.set('_t', Date.now()); 
+    const cantH = "{{ cantidad_faltante if cantidad_faltante else '' }}";
+    if(cantH) url.searchParams.set('cantidad_hoja', cantH);
+    window.location.href = url.href;
+}
+
+async function enviarFinal(itemId) {
+    const qtyInput = document.getElementById('qty-' + itemId);
+    const btn = document.getElementById('btn-' + itemId);
+    const area = document.getElementById('area-' + itemId);
+    if (qtyInput.disabled || btn.disabled) return;
+    
+    const cantidadIngresada = parseInt(qtyInput.value, 10);
+    const cantidadMaxima = parseInt(qtyInput.getAttribute('max'), 10);
+    
+    if (cantidadIngresada > cantidadMaxima) {
+        alert(`⚠️ ATENCIÓN: El máximo permitido es de ${cantidadMaxima} unidades.`);
+        qtyInput.value = cantidadMaxima; return; 
+    }
+    if (cantidadIngresada < 1 || isNaN(cantidadIngresada)) {
+        alert(`⚠️ ATENCIÓN: Debes ingresar mínimo 1.`);
+        qtyInput.value = 1; return;
+    }
+    
+    btn.innerText = "⏳..."; btn.disabled = true; qtyInput.disabled = true;
+    let formData = new FormData();
+    formData.append('cantidad_descontar', cantidadIngresada);
+    
+    try {
+        const respuesta = await fetch(area.getAttribute('data-url'), { method: 'POST', body: formData });
+        if (respuesta.ok) { 
+            const urlParams = new URLSearchParams(window.location.search);
+            const faltanteActual = urlParams.get('cantidad_hoja');
+            if (faltanteActual) {
+                const nuevoFaltante = parseInt(faltanteActual, 10) - cantidadIngresada;
+                if (nuevoFaltante > 0) {
+                    urlParams.set('cantidad_hoja', nuevoFaltante);
+                    urlParams.set('_t', Date.now()); 
+                    window.location.search = urlParams.toString();
+                } else {
+                    document.getElementById('pantalla-exito').style.display = 'flex';
+                    setTimeout(() => {
+                        {% if lote_nombre %}
+                            window.location.href = "{{ url_for('picking_detalle', lote=lote_nombre) }}?_t=" + Date.now();
+                        {% else %}
+                            window.location.href = "{{ url_for('logistica') }}?_t=" + Date.now();
+                        {% endif %}
+                    }, 1500); 
+                }
+            } else {
+                window.location.href = window.location.pathname + window.location.search + "&_t=" + Date.now();
+            }
+        } else { alert("Error del servidor"); btn.innerText = "📦 Extraer"; btn.disabled = false; qtyInput.disabled = false; }
+    } catch (e) { alert("Error de red"); btn.innerText = "📦 Extraer"; btn.disabled = false; qtyInput.disabled = false; }
+}
+</script>
+
+<script>
+    // Lógica para abrir y cerrar la cámara HTML5
+    let escanerHtml5 = null;
+    function abrirCamaraCelular() {
+        document.getElementById('modal-camara').style.display = 'flex';
+        escanerHtml5 = new Html5Qrcode("lector-video");
+        const configuracion = { fps: 10, qrbox: { width: 250, height: 100 } };
+        
+        escanerHtml5.start({ facingMode: "environment" }, configuracion, 
+            (codigoDecodificado) => {
+                cerrarCamaraCelular();
+                if (navigator.vibrate) navigator.vibrate(100);
+                // Le pasamos el código a la misma función que usa la pistola
+                procesarEscaneoGlobal(codigoDecodificado.toUpperCase().trim());
+            }, (error) => {
+                // Silenciamos los errores de frame
+            }
+        ).catch((err) => { 
+            alert("⚠️ Error al iniciar cámara."); 
+            cerrarCamaraCelular(); 
+        });
+    }
+
+    function cerrarCamaraCelular() {
+        document.getElementById('modal-camara').style.display = 'none';
+        if (escanerHtml5) { 
+            escanerHtml5.stop().catch(e => {}); 
+            escanerHtml5 = null; 
+        }
+    }
+</script>
+
+</body>
+</html>

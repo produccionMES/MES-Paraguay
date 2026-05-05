@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <title>Recepciones Pendientes</title>
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --success: #198754;
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-radius: 16px;
+        }
+
+        /* Bloqueo de scroll lateral fantasma */
+        html, body { max-width: 100vw; overflow-x: hidden; margin: 0; padding: 0; }
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text-main); 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* NAVBAR RESPONSIVA */
+        .navbar { 
+            background-color: #0f172a; color: white; padding: 15px 25px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+        }
+        .navbar h2 { margin: 0; font-size: 22px; display: flex; align-items: center; gap: 10px; }
+        
+        .btn-volver { 
+            background: #334155; color: white; text-decoration: none; 
+            padding: 10px 20px; border-radius: 8px; font-weight: bold; 
+            font-size: 15px; transition: 0.2s; display: inline-flex; align-items: center;
+        }
+
+        .container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        /* HEADER DE SECCIÓN */
+        .section-header { 
+            margin-bottom: 25px; border-bottom: 2px solid #e2e8f0; 
+            padding-bottom: 15px; display: flex; justify-content: space-between; 
+            align-items: center; flex-wrap: wrap; gap: 10px;
+        }
+        .section-header h3 { margin: 0; font-size: 24px; color: #334155; }
+        .badge-count { 
+            background: var(--primary); color: white; padding: 6px 14px; 
+            border-radius: 30px; font-size: 15px; font-weight: bold; 
+        }
+
+        /* MENSAJES FLASH */
+        .flash-msg { padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 20px; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .msg-info { background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; }
+        .msg-warning { background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; }
+
+        /* GRID DE TARJETAS */
+        .lotes-grid { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; 
+        }
+        
+        .lote-card { 
+            background: var(--card-bg); border-radius: var(--border-radius); 
+            padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            border: 1px solid #e2e8f0; border-top: 5px solid var(--primary);
+            display: flex; flex-direction: column; transition: transform 0.2s;
+        }
+        .lote-card:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+
+        .card-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .badge-remito { background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 800; border: 1px solid #bae6fd; }
+        .fecha-text { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+
+        .lote-title { font-size: 22px; font-weight: 900; color: #1e293b; margin: 0 0 4px 0; }
+        .lote-desc { font-size: 15px; color: var(--text-muted); margin-bottom: 15px; font-weight: 500; line-height: 1.3; }
+        
+        .lote-stats { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .stat-badge { 
+            background: #f1f5f9; color: #475569; padding: 8px 12px; 
+            border-radius: 8px; font-size: 15px; font-weight: 800; 
+            display: flex; align-items: center; gap: 6px; border: 1px solid #e2e8f0;
+        }
+        .stat-warning { background: #fffbeb; color: #c2410c; border-color: #fed7aa; }
+        
+        /* BOTÓN DE CONFIRMAR */
+        .btn-preparar { 
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+            background: var(--success); color: white; padding: 16px; 
+            border-radius: 10px; border: none; font-size: 16px; 
+            font-weight: bold; cursor: pointer; transition: 0.2s; width: 100%;
+            box-shadow: 0 4px 10px rgba(25, 135, 84, 0.3);
+            margin-top: 5px;
+        }
+        .btn-preparar:active { transform: scale(0.98); opacity: 0.9; }
+        .btn-preparar:disabled { background: #6c757d; cursor: not-allowed; box-shadow: none; }
+
+        /* ESTADO VACÍO */
+        .empty-state { 
+            text-align: center; padding: 60px 20px; background: white; 
+            border-radius: 20px; border: 3px dashed #cbd5e1; color: #64748b; 
+            grid-column: 1 / -1; 
+        }
+
+        /* CELULARES */
+        @media (max-width: 768px) {
+            .navbar { padding: 15px; flex-direction: column; text-align: center; gap: 12px; }
+            .navbar h2 { font-size: 20px; }
+            .btn-volver { width: 100%; justify-content: center; padding: 12px; }
+            .container { padding: 15px; }
+            .section-header { flex-direction: column; text-align: center; gap: 12px; }
+            .lotes-grid { grid-template-columns: 1fr; gap: 15px; }
+            .btn-preparar { padding: 18px; font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2>📥 Recepción de Logística</h2>
+        <a href="{{ url_for('logistica') }}" class="btn-volver">← Volver al Mapa</a>
+    </div>
+
+    <div class="container">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-msg {% if category == 'error' %}msg-error{% elif category == 'info' %}msg-info{% elif category == 'warning' %}msg-warning{% else %}msg-success{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="section-header">
+            <h3>Mercadería en Tránsito</h3>
+            <div class="badge-count">{{ pendientes|length }} Remitos</div>
+        </div>
+
+        <div class="lotes-grid">
+            {% if pendientes %}
+                {% for t in pendientes %}
+                <div class="lote-card">
+                    <div class="card-header-row">
+                        <span class="badge-remito">📄 {{ t.remito_nro.rsplit('-', 1)[0] if t.remito_nro.count('-') >= 3 else t.remito_nro }}</span>
+                        <span class="fecha-text">📅 {{ t.fecha_envio.strftime('%d/%m %H:%M') }}</span>
+                    </div>
+                    
+                    <h4 class="lote-title">{{ t.sku }}</h4>
+                    <div class="lote-desc">{{ t.descripcion }}</div>
+                    
+                    <div class="lote-stats">
+                        <div class="stat-badge" style="background: #e0e7ff; color: #6d28d9; border-color: #ddd6fe;">
+                            📄 En Papel: {{ t.cantidad }} u.
+                        </div>
+                        <div class="stat-badge stat-warning">
+                            🚚 {{ t.estado }}
+                        </div>
+                    </div>
+
+                    <form action="{{ url_for('confirmar_recepcion', trans_id=t.id) }}" method="POST" style="margin: 0; margin-top: auto;" onsubmit="
+                        const btn = this.querySelector('button');
+                        btn.innerHTML = '⏳ Recibiendo...';
+                        btn.disabled = true;
+                        window.history.replaceState(null, null, window.location.pathname + '?_t=' + Date.now());
+                        return true;
+                    ">
+                        <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 8px;">
+                            <label style="font-size: 12px; font-weight: bold; color: #475569; text-align: center;">¿CUÁNTAS UNIDADES LLEGARON REALMENTE?</label>
+                            <input type="number" name="cantidad_recibida" value="{{ t.cantidad }}" min="0" max="{{ t.cantidad }}" required 
+                                   style="width: 100%; padding: 10px; border-radius: 6px; border: 2px solid #0d6efd; font-size: 18px; font-weight: 900; text-align: center; color: #0f172a; outline: none;">
+                        </div>
+
+                        <button type="submit" class="btn-preparar">
+                            ✅ Confirmar Recepción
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <span style="font-size: 55px; display: block; margin-bottom: 10px;">🚚</span>
+                    <div style="font-size: 22px; font-weight: bold; color: #334155; margin-bottom: 5px;">Bandeja Vacía</div>
+                    <p style="margin: 0; font-size: 16px;">No hay transferencias en camino.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // 🔥 AUTO-RECARGA SI EL NAVEGADOR CARGA DESDE LA MEMORIA AL TOCAR EL BOTÓN ATRÁS 🔥
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                window.location.reload();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Acceso al Sistema - MES</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+
+    <style>
+        /* 🔥 ANTI-SCROLL Y RESET 🔥 */
+        html, body {
+            max-width: 100vw;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+        }
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* 🌌 FONDO CORPORATIVO CON FOTO INDUSTRIAL */
+        body { 
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            /* Mezclamos un degradado azul oscuro semitransparente con una foto de industria de fondo */
+            background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.95)), 
+                        url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=2000&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
+
+        /* 📦 TARJETA DEL LOGIN (Efecto Glassmorphism) */
+        .caja-login { 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(10px); 
+            padding: 45px 40px; 
+            border-radius: 16px; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2); 
+            text-align: center; 
+            width: 380px; 
+            max-width: 90%; 
+            border-top: 5px solid #2563eb; 
+        }
+
+        /* 🏷️ BRANDING MES CON LOGO Y ESTILO 'PRO' */
+        .marca-container {
+            margin-bottom: 35px;
+        }
+        .logo-svg {
+            width: 55px;
+            height: 55px;
+            margin-bottom: 15px;
+            filter: drop-shadow(0 4px 6px rgba(37, 99, 235, 0.3));
+        }
+
+        /* 🔥 NUEVO ESTILO PROFESIONAL PARA 'MES' 🔥 */
+        h2 { 
+            margin: 0; 
+            color: #1e3a8a; /* Un azul corporativo un poco más profundo */
+            font-size: 36px; /* Aumentado ligeramente */
+            font-weight: 900;
+            text-transform: uppercase;
+            /* 🚀 TÉCNICA CLAVE: Gran espacio entre letras para lujo/exclusividad */
+            letter-spacing: 6px; 
+            position: relative;
+            display: inline-block;
+        }
+        /* 🎨 NUEVO ENMARCADO CON LÍNEAS 🎨 */
+        h2::before, h2::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            width: 45px; /* Longitud de las líneas flanqueantes */
+            height: 1.5px; /* Fineza de las líneas */
+            background-color: #cbd5e1; /* Gris claro */
+            transform: translateY(-50%);
+        }
+        h2::before { left: -60px; } /* Ajuste de posición a la izquierda */
+        h2::after { right: -60px; } /* Ajuste de posición a la derecha */
+
+        .subtitle {
+            margin: 10px 0 0 0; /* Un poco más de aire */
+            color: #64748b;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+
+        /* ✍️ CAMPOS DE TEXTO ESTILIZADOS */
+        .input-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+        .input-group input { 
+            width: 100%; 
+            padding: 14px; 
+            border: 1.5px solid #cbd5e1; 
+            border-radius: 8px; 
+            font-size: 15px; 
+            background-color: #f8fafc;
+            color: #0f172a;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        .input-group input:focus { 
+            border-color: #3b82f6; 
+            background-color: #ffffff;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); 
+        }
+
+        /* 🚀 BOTÓN DE ACCIÓN PRINCIPAL */
+        button { 
+            width: 100%; 
+            padding: 14px; 
+            background: #2563eb; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 16px;
+            cursor: pointer; 
+            margin-top: 10px; 
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+        }
+        button:hover { 
+            background: #1d4ed8; 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+        }
+        button:active { 
+            transform: translateY(0); 
+        }
+
+        /* ⚠️ ALERTAS DE ERROR FLASK */
+        .mensaje { 
+            background-color: #fef2f2;
+            color: #b91c1c; 
+            font-weight: 600; 
+            font-size: 13px; 
+            margin-bottom: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #ef4444; 
+            text-align: left;
+        }
+
+        /* 📱 AJUSTES PARA CELULAR */
+        @media (max-width: 768px) {
+            .caja-login { padding: 40px 25px; border-radius: 12px; }
+            h2 { font-size: 28px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="caja-login">
+        
+        <div class="marca-container">
+            <svg class="logo-svg" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+            
+            <h2>MES</h2> <p class="subtitle">Sistema de Gestión Integral</p>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="mensaje">⚠️ {{ messages[0] }}</div>
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="input-group">
+                <label for="username">Usuario</label>
+                <input type="text" id="username" name="username" placeholder="Ej: admin" required autofocus autocomplete="username">
+            </div>
+            
+            <div class="input-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+
+            <button type="submit">Iniciar Sesión</button>
+        </form>
+        
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}").then(function(registration) {
+                    console.log('ServiceWorker registrado con éxito!');
+                }, function(err) {
+                    console.log('Error al registrar el ServiceWorker: ', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

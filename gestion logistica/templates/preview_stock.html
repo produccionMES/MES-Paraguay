@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Previsualización de Importación</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8f9fa; margin: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; border-bottom: 2px solid #dee2e6; padding-bottom: 10px; }
+        
+        .resumen { display: flex; gap: 20px; margin-bottom: 20px; }
+        .box { flex: 1; padding: 20px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 18px; }
+        .box-ok { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+        .box-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        th { background-color: #e9ecef; }
+        .row-error { background-color: #fff3f3; color: #dc3545; font-weight: bold; }
+
+        .acciones { display: flex; justify-content: flex-end; gap: 15px; margin-top: 20px; }
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; text-decoration: none; }
+        .btn-cancelar { background-color: #6c757d; color: white; }
+        .btn-confirmar { background-color: #198754; color: white; }
+        .btn-confirmar:hover { background-color: #157347; }
+        .btn-cancelar:hover { background-color: #5c636a; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>👀 Previsualización de Carga de Stock</h2>
+    <p>Revisá los datos antes de inyectarlos en la base de datos oficial.</p>
+
+    <div class="resumen">
+        <div class="box box-ok">✅ {{ correctos|length }} Filas Listas para Subir</div>
+        <div class="box box-error">❌ {{ errores|length }} Errores Detectados</div>
+    </div>
+
+    {% if errores %}
+    <h3 style="color: #dc3545;">⚠️ Filas que NO se importarán (Errores)</h3>
+    <table>
+        <tr>
+            <th>SKU en Excel</th>
+            <th>Ubicación/Rack</th>
+            <th>Motivo del Error</th>
+        </tr>
+        {% for err in errores %}
+        <tr class="row-error">
+            <td>{{ err.sku }}</td>
+            <td>{{ err.ubicacion }}</td>
+            <td>{{ err.motivo }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if correctos %}
+    <h3 style="color: #198754;">✅ Filas Correctas (Se importarán)</h3>
+    <div style="max-height: 300px; overflow-y: auto;">
+        <table>
+            <tr>
+                <th>SKU</th>
+                <th>Descripción</th>
+                <th>Cantidad a sumar</th>
+            </tr>
+            {% for ok in correctos %}
+            <tr>
+                <td>{{ ok.sku }}</td>
+                <td>{{ ok.descripcion }}</td>
+                <td>{{ ok.cantidad }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="acciones">
+        <a href="{{ url_for('logistica') }}" class="btn btn-cancelar">🚫 Cancelar Todo</a>
+        
+        <form action="{{ url_for('confirmar_importacion_stock') }}" method="POST">
+            <input type="hidden" name="archivo_temporal" value="{{ filename }}">
+            <button type="submit" class="btn btn-confirmar" {% if correctos|length == 0 %}disabled{% endif %}>
+                🚀 Confirmar Importación
+            </button>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>

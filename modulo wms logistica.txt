@@ -1,0 +1,1032 @@
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import pandas as pd
+import csv
+import io
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'wms_secreto_123'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///wms_database.db'
+db = SQLAlchemy(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+
+
+# --- CONFIGURACIÓN DE SEGURIDAD ---
+login_manager.init_app(app)
+login_manager.login_view = 'login' # Si alguien sin sesión intenta entrar, lo manda a esta ruta
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Usuario.query.get(int(user_id))
+
+# --- NUEVA TABLA: Usuarios ---
+# --- TABLA: Usuarios ---
+class Usuario(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(250), nullable=False)
+    rol = db.Column(db.String(20), nullable=False, default='operario') # ¡NUEVA COLUMNA!
+
+class Rack(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(50), unique=False, nullable=False) # 👈 Cambiamos a False
+    # Agregamos una descripción opcional para que tú los diferencies (ej: Modulo 1, Modulo 2)
+    descripcion = db.Column(db.String(100), nullable=True) 
+    niveles = db.Column(db.Integer, nullable=False)
+    posiciones = db.Column(db.Integer, nullable=False)
+    tipo_pos = db.Column(db.String(20), default='secuencial')
+    multi_nivel = db.Column(db.Integer, default=1)
+
+    ubicaciones = db.relationship('Ubicacion', backref='rack', cascade='all, delete-orphan', lazy=True)
+
+# --- NUEVA TABLA: Auditoría de Ajustes de Inventario ---
+class HistorialAjuste(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    sku = db.Column(db.String(50), nullable=False)
+    descripcion = db.Column(db.String(150), nullable=False)
+    cantidad_anterior = db.Column(db.Integer, nullable=False)
+    cantidad_nueva = db.Column(db.Integer, nullable=False)
+    motivo = db.Column(db.String(200), nullable=False)
+    ubicacion = db.Column(db.String(100), nullable=False)
+    usuario = db.Column(db.String(50), nullable=False)
+
+
+class Ubicacion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rack_id = db.Column(db.Integer, db.ForeignKey('rack.id'), nullable=False)
+    nivel = db.Column(db.Integer, nullable=False)
+    posicion = db.Column(db.Integer, nullable=False)
+    codigo_unico = db.Column(db.String(100), unique=True, nullable=False)
+
+# 👇 ESTA ES LA TABLA QUE FALTABA O ESTABA MAL UBICADA 👇
+class Producto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sku = db.Column(db.String(50), unique=True, nullable=False)
+    ean = db.Column(db.String(50), unique=True, nullable=True)
+    descripcion = db.Column(db.String(150), nullable=False)
+    items_en_stock = db.relationship('Item', backref='producto_detalle', lazy=True, cascade="all, delete-orphan")
+
+# --- NUEVA TABLA: Trazabilidad de Salidas ---
+class HistorialDespacho(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=datetime.now) # Guarda la fecha y hora exacta automáticamente
+    sku = db.Column(db.String(50), nullable=False)
+    descripcion = db.Column(db.String(150), nullable=False)
+    cantidad = db.Column(db.Integer, nullable=False)
+    transporte = db.Column(db.String(100), nullable=False) # Ej: Andreani, OCA, Camión Propio
+    origen = db.Column(db.String(100), nullable=False) # Para saber de qué hueco lo sacaron
+    usuario = db.Column(db.String(50), nullable=False, default='Desconocido') # ¡NUEVA COLUMNA!
+
+# Y así debe quedar la tabla Item conectada a Producto
+class Item(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ubicacion_id = db.Column(db.Integer, db.ForeignKey('ubicacion.id'), nullable=False)
+    
+    # 🔥 ESTA ES LA LÍNEA QUE FALTA (El puente):
+    ubicacion = db.relationship('Ubicacion', backref='items_en_posicion', lazy=True)
+    
+    producto_id = db.Column(db.Integer, db.ForeignKey('producto.id'), nullable=False)
+    sub_ubicacion = db.Column(db.String(100), default="General")
+    cantidad = db.Column(db.Integer, nullable=False)
+
+# ==========================================
+# MÓDULO DE PICKING INTELIGENTE (DESDE EXCEL)
+# ==========================================
+class TareaPicking(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.String(50))
+    zona = db.Column(db.String(100))
+    producto = db.Column(db.String(150))
+    ubicacion_excel = db.Column(db.String(100))
+    sku = db.Column(db.String(50))
+    descripcion = db.Column(db.String(250))
+    cantidad = db.Column(db.Integer, nullable=False, default=1)
+    estado = db.Column(db.String(20), default="Pendiente") # Pendiente o Pickeado
+
+# ==========================================
+# MÓDULO DE PEDIDOS Y PICKING
+# ==========================================
+
+class Pedido(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    numero_pedido = db.Column(db.String(50), unique=True, nullable=False)
+    cliente = db.Column(db.String(100), nullable=True)
+    estado = db.Column(db.String(20), default="Pendiente") # Pendiente, En Proceso, Completado
+    fecha_creacion = db.Column(db.DateTime, default=datetime.now)
+    lineas = db.relationship('LineaPedido', backref='pedido_asociado', lazy=True, cascade="all, delete-orphan")
+
+class LineaPedido(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    pedido_id = db.Column(db.Integer, db.ForeignKey('pedido.id'), nullable=False)
+    sku = db.Column(db.String(50), nullable=False)
+    cantidad_requerida = db.Column(db.Integer, nullable=False)
+    cantidad_pickeada = db.Column(db.Integer, default=0)
+
+
+# --- CREACIÓN DE LA BASE DE DATOS ---
+with app.app_context():
+    db.create_all()
+
+# --- CREACIÓN DE LA BASE DE DATOS ---
+with app.app_context():
+    db.create_all() # Esto crea el archivo .db y las tablas si no existen
+
+# --- RUTAS BÁSICAS ---
+@app.route('/')
+@login_required
+def index():
+    racks = Rack.query.all()
+    
+    # --- CÁLCULOS DE OCUPACIÓN ---
+    total_huecos = Ubicacion.query.count()
+    
+    # Contamos ubicaciones únicas que tienen ítems (stock)
+    huecos_ocupados = db.session.query(Item.ubicacion_id).distinct().count()
+    huecos_vacios = total_huecos - huecos_ocupados
+    
+    # Calculamos el porcentaje: $Porcentaje = \frac{Ocupados}{Total} \times 100$
+    if total_huecos > 0:
+        porcentaje = round((huecos_ocupados / total_huecos) * 100, 1)
+    else:
+        porcentaje = 0
+
+    # 🔥 Lógica de Alerta Roja (90%)
+    color_alerta = "#dc3545" if porcentaje >= 90 else "#0d6efd"
+
+    return render_template('deposito.html', 
+                           racks=racks, 
+                           total=total_huecos, 
+                           ocupados=huecos_ocupados, 
+                           vacios=huecos_vacios, 
+                           porcentaje=porcentaje,
+                           color_alerta=color_alerta)
+
+@app.route('/crear_rack', methods=['POST'])
+@login_required
+def crear_rack():
+    if current_user.rol != 'admin':
+        return redirect(url_for('logistica'))
+
+    nombre = request.form.get('nombre').strip().upper()
+    descripcion = request.form.get('descripcion', '').strip() # 👈 Nuevo campo
+    niveles = int(request.form.get('niveles'))
+    posiciones = int(request.form.get('posiciones'))
+    tipo_pos = request.form.get('tipo_pos', 'secuencial')
+    multi_nivel = int(request.form.get('multi_nivel', 1))
+
+    # Quitamos el chequeo de "if Rack.query.filter_by(nombre=nombre).first():"
+    # Ahora permitimos nombres iguales.
+
+    nuevo_rack = Rack(nombre=nombre, descripcion=descripcion, niveles=niveles, posiciones=posiciones, tipo_pos=tipo_pos, multi_nivel=multi_nivel)
+    db.session.add(nuevo_rack)
+    db.session.commit() # Guardamos para que genere un ID único
+
+    # GENERAMOS LOS HUECOS
+    for n in range(1, niveles + 1):
+        nivel_real = n * multi_nivel
+        for p in range(1, posiciones + 1):
+            if tipo_pos == 'impares': pos_real = (p * 2) - 1
+            elif tipo_pos == 'pares': pos_real = p * 2
+            else: pos_real = p
+
+            # 🔥 LA SOLUCIÓN AL CHOQUE: 
+            # Si el nombre se repite, usamos el ID del rack para que el código sea único internamente
+            # Pero visualmente en el mapa se seguirá viendo el nombre que tú elijas.
+            codigo = f"{nombre}-{pos_real}-{nivel_real}-ID{nuevo_rack.id}"
+
+            nueva_ubi = Ubicacion(
+                rack_id=nuevo_rack.id,
+                nivel=nivel_real,
+                posicion=pos_real,
+                codigo_unico=codigo
+            )
+            db.session.add(nueva_ubi)
+
+    db.session.commit()
+    flash(f'✅ {nombre} (ID: {nuevo_rack.id}) creado correctamente.')
+    return redirect(url_for('logistica'))
+
+@app.route('/usuarios')
+@login_required
+def gestionar_usuarios():
+    # Solo el admin puede entrar a ver la lista
+    if current_user.rol != 'admin':
+        flash('🚫 Acceso denegado. Solo administradores.')
+        return redirect(url_for('logistica'))
+
+    todos_los_usuarios = Usuario.query.all()
+    return render_template('usuarios.html', usuarios=todos_los_usuarios)
+
+@app.route('/usuarios/eliminar/<int:id>', methods=['POST'])
+@login_required
+def eliminar_usuario(id):
+    if current_user.rol != 'admin': return redirect(url_for('logistica'))
+
+    user = Usuario.query.get_or_404(id)
+    if user.id == current_user.id:
+        flash('❌ No puedes eliminarte a ti mismo.')
+    else:
+        db.session.delete(user)
+        db.session.commit()
+        flash(f'✅ Usuario {user.username} eliminado.')
+    return redirect(url_for('gestionar_usuarios'))
+
+@app.route('/usuarios/reset_password/<int:id>', methods=['POST'])
+@login_required
+def reset_password(id):
+    if current_user.rol != 'admin': return redirect(url_for('logistica'))
+
+    user = Usuario.query.get_or_404(id)
+    nueva_pass = request.form.get('nueva_password')
+    if nueva_pass:
+        user.password = generate_password_hash(nueva_pass)
+        db.session.commit()
+        flash(f'✅ Contraseña de {user.username} actualizada.')
+    return redirect(url_for('gestionar_usuarios'))
+
+@app.route('/eliminar_rack/<int:rack_id>', methods=['POST'])
+@login_required
+def eliminar_rack(rack_id):
+    if current_user.rol != 'admin':
+        return redirect(url_for('logistica'))
+
+    rack = Rack.query.get_or_404(rack_id)
+
+    # 🔥 NUEVA LÓGICA DE SEGURIDAD:
+    # Buscamos si hay algún ítem guardado en cualquiera de las ubicaciones de este rack
+    tiene_stock = Item.query.join(Ubicacion).filter(Ubicacion.rack_id == rack_id).first()
+
+    if tiene_stock:
+        # Si encuentra aunque sea un producto, frena el borrado y avisa al usuario
+        flash(f'🚫 ERROR: El rack "{rack.nombre}" contiene mercadería. Debes vaciarlo antes de eliminarlo.')
+        return redirect(url_for('logistica'))
+
+    # Si llegó aquí, es porque está vacío y es seguro borrar
+    try:
+        db.session.delete(rack)
+        db.session.commit()
+        flash(f'🗑️ Rack "{rack.nombre}" eliminado correctamente.')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'❌ Error inesperado: {str(e)}')
+
+    return redirect(url_for('logistica'))
+
+# Cambiamos el orden de los parámetros en la URL: primero pos, luego nivel
+@app.route('/ubicacion/<int:rack_id>/<int:pos>/<int:nivel>')
+@login_required
+def detalle_ubicacion(rack_id, pos, nivel):
+    # Buscamos la ubicación filtrando por los tres datos clave
+    ubicacion = Ubicacion.query.filter_by(rack_id=rack_id, posicion=pos, nivel=nivel).first()
+
+    # Si por alguna razón no la encuentra por números, probamos por el código de texto
+    if not ubicacion:
+        nombre_rack = Rack.query.get(rack_id).nombre
+        codigo_buscado = f"{nombre_rack}-{pos}-{nivel}"
+        ubicacion = Ubicacion.query.filter_by(codigo_unico=codigo_buscado).first_or_404()
+
+    items = Item.query.filter_by(ubicacion_id=ubicacion.id).all()
+    productos = Producto.query.order_by(Producto.sku).all()
+
+    return render_template('ubicacion.html', ubicacion=ubicacion, items=items, productos=productos)
+
+
+@app.route('/buscar')
+@login_required
+def buscar():
+    termino = request.args.get('q', '')
+    resultados = []
+
+    if termino:
+        busqueda = f"%{termino}%"
+
+        # ¡NUEVO! Unimos la tabla Item con Producto para poder buscar por el SKU o Descripción del catálogo
+        resultados = Item.query.join(Producto).filter(
+            db.or_(
+                Producto.sku.ilike(busqueda),
+                Producto.descripcion.ilike(busqueda),
+                Producto.ean.ilike(busqueda) # ¡De paso le agregamos que también busque por código de barras!
+            )
+        ).all()
+
+    return render_template('resultados.html', termino=termino, resultados=resultados)
+
+@app.route('/importar_productos', methods=['POST'])
+def importar_productos():
+    archivo = request.files.get('archivo_csv')
+    if not archivo or archivo.filename == '':
+        flash('❌ No se seleccionó ningún archivo.')
+        return redirect(url_for('catalogo'))
+
+    try:
+        raw_data = archivo.read()
+        try:
+            texto = raw_data.decode('utf-8-sig')
+        except:
+            texto = raw_data.decode('latin1')
+
+        lineas = texto.splitlines()
+        if len(lineas) <= 1:
+            flash('⚠️ El archivo parece estar vacío.')
+            return redirect(url_for('catalogo'))
+
+        delimitador = ';' if ';' in lineas[0] else ','
+        lector = csv.reader(lineas, delimiter=delimitador)
+        next(lector, None) # Saltamos los títulos
+
+        productos_agregados = 0
+        productos_actualizados = 0
+        errores_ean = 0
+
+        # --- MAGIA DE RENDIMIENTO ---
+        # 1. Traemos todo a la memoria RAM de una sola vez
+        todos_los_productos = Producto.query.all()
+
+        # Armamos un diccionario rápido de { 'SKU123': ProductoObj }
+        diccionario_sku = {p.sku: p for p in todos_los_productos}
+
+        # Armamos un set de EANs ya usados para evitar duplicados y choques
+        eans_usados = {p.ean for p in todos_los_productos if p.ean}
+
+        for i, fila in enumerate(lector, start=2):
+            if len(fila) == 1 and ',' in fila[0]:
+                fila = fila[0].split(',')
+
+            if len(fila) >= 3:
+                sku = str(fila[0]).strip()
+                ean = str(fila[1]).strip()
+                desc = str(fila[2]).strip()
+
+                if ean == "":
+                    ean = None
+
+                if sku != "":
+                    # Búsqueda en memoria (Milisegundos) en vez de en Base de Datos
+                    if sku in diccionario_sku:
+                        producto_existente = diccionario_sku[sku]
+
+                        # Verificamos si el Excel nos trae un EAN que le pertenece a OTRO producto
+                        if ean and ean != producto_existente.ean and ean in eans_usados:
+                            errores_ean += 1
+                            continue
+
+                        producto_existente.ean = ean
+                        producto_existente.descripcion = desc
+                        if ean: eans_usados.add(ean)
+                        productos_actualizados += 1
+
+                    else:
+                        # Producto totalmente nuevo
+                        if ean and ean in eans_usados:
+                            errores_ean += 1
+                            continue # Evitamos que explote si el EAN ya existe
+
+                        nuevo = Producto(sku=sku, ean=ean, descripcion=desc)
+                        db.session.add(nuevo)
+
+                        # Lo sumamos a la memoria por si aparece repetido más abajo en el mismo Excel
+                        diccionario_sku[sku] = nuevo
+                        if ean: eans_usados.add(ean)
+                        productos_agregados += 1
+
+        # 2. IMPACTO ÚNICO: Guardamos todo de golpe al final (Rapidísimo)
+        db.session.commit()
+
+        mensaje = f'✅ Éxito: {productos_agregados} agregados y {productos_actualizados} actualizados.'
+        if errores_ean > 0:
+            mensaje += f' ⚠️ Se ignoraron {errores_ean} filas por EAN repetido.'
+        flash(mensaje)
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'❌ Error grave procesando el archivo: {str(e)}')
+
+    return redirect(url_for('catalogo'))
+
+
+@app.route('/agregar_item/<int:ubicacion_id>', methods=['POST'])
+@login_required
+def agregar_item(ubicacion_id):
+    if current_user.rol not in ['admin', 'stock']:
+        flash('⚠️ No tienes permiso para agregar mercadería.')
+        return redirect(request.referrer)
+
+    # Convertimos producto_id a entero para que la búsqueda no falle
+    producto_id = int(request.form.get('producto_id'))
+    cantidad = int(request.form.get('cantidad'))
+
+    # Si dejas la sub-ubicación vacía, le ponemos 'General' por defecto
+    sub_ubicacion = request.form.get('sub_ubicacion', '').strip()
+    if not sub_ubicacion:
+        sub_ubicacion = "General"
+
+    # BUSQUEDA EXACTA: Misma ubicación, mismo producto y misma sub-división
+    item_existente = Item.query.filter_by(
+        ubicacion_id=ubicacion_id,
+        producto_id=producto_id,
+        sub_ubicacion=sub_ubicacion
+    ).first()
+
+    if item_existente:
+        # SUMA: Si lo encuentra, actualiza el número
+        item_existente.cantidad += cantidad
+        flash(f'✅ Stock actualizado: se sumaron {cantidad} unidades.')
+    else:
+        # NUEVO: Si no existe ese combo, crea la fila
+        nuevo_item = Item(
+            ubicacion_id=ubicacion_id,
+            producto_id=producto_id,
+            cantidad=cantidad,
+            sub_ubicacion=sub_ubicacion
+        )
+        db.session.add(nuevo_item)
+        flash('✅ Nuevo producto ingresado en la posición.')
+
+    db.session.commit()
+    return redirect(request.referrer)
+
+@app.route('/catalogo')
+@login_required
+def catalogo():
+    # Solo mostramos el catálogo, no subimos archivos aquí
+    productos = Producto.query.order_by(Producto.sku).all()
+    return render_template('catalogo.html', productos=productos)
+
+@app.route('/eliminar_item/<int:item_id>', methods=['POST'])
+def eliminar_item(item_id):
+    # 1. Buscamos el lote/ítem exacto que queremos retirar
+    item_a_borrar = Item.query.get_or_404(item_id)
+
+    # 2. Guardamos los datos de la ubicación para saber a qué pantalla volver
+    ubicacion = Ubicacion.query.get(item_a_borrar.ubicacion_id)
+
+    # 3. Lo eliminamos de la base de datos
+    db.session.delete(item_a_borrar)
+    db.session.commit()
+
+    # 4. Recargamos la pantalla de esa misma posición
+    return redirect(url_for('detalle_ubicacion', rack_id=ubicacion.rack_id, nivel=ubicacion.nivel, pos=ubicacion.posicion))
+
+
+
+@app.route('/descontar_item/<int:item_id>', methods=['POST'])
+@login_required
+def descontar_item(item_id):
+    item = Item.query.get_or_404(item_id)
+
+    try:
+        cantidad_a_descontar = int(request.form.get('cantidad_descontar', 0))
+    except ValueError:
+        return redirect(request.referrer)
+
+    # Candado: Verificamos si venimos de un Picking
+    es_picking = request.args.get('cantidad_hoja') is not None
+    sku_despachado = item.producto_detalle.sku
+
+    if es_picking:
+        tarea = TareaPicking.query.filter_by(sku=sku_despachado, estado='Pendiente').first()
+        # Si la tarea ya no está pendiente, frenamos todo.
+        if not tarea:
+            flash('⚠️ Este pedido ya fue completado.')
+            return redirect(url_for('ver_picking'))
+
+    if cantidad_a_descontar > item.cantidad:
+        flash(f'⚠️ No puedes sacar {cantidad_a_descontar}. Solo hay {item.cantidad}.')
+        return redirect(request.referrer)
+
+    # 1. Restar stock
+    item.cantidad -= cantidad_a_descontar
+
+    # 2. Guardar historial
+    nuevo_h = HistorialDespacho(
+        fecha=datetime.now(),
+        sku=sku_despachado,
+        descripcion=item.producto_detalle.descripcion,
+        cantidad=cantidad_a_descontar,
+        origen=item.ubicacion.codigo_unico,
+        usuario=current_user.username,
+        transporte="Picking Hoja Ruta" if es_picking else "Despacho Manual"
+    )
+    db.session.add(nuevo_h)
+
+    # 3. Lógica de Picking Parcial
+    if es_picking and tarea:
+        tarea.cantidad -= cantidad_a_descontar
+
+        if tarea.cantidad <= 0:
+            tarea.estado = 'Pickeado'
+            tarea.usuario_asignado = current_user.username
+            flash(f'✅ Tarea completada para el SKU {sku_despachado}.')
+        else:
+            flash(f'📦 Faltan sacar {tarea.cantidad} unidades más de este producto.')
+
+    if item.cantidad <= 0:
+        db.session.delete(item)
+
+    db.session.commit()
+
+    if es_picking and tarea and tarea.estado == 'Pendiente':
+        return redirect(url_for('despachos', sku=sku_despachado, cantidad_hoja=tarea.cantidad))
+
+    return redirect(url_for('ver_picking'))
+
+    # REDIRECCIÓN INTELIGENTE:
+    # Si todavía falta pickear algo de esa tarea, lo dejamos en Despachos para que busque otro rack
+    if tarea and tarea.estado == 'Pendiente':
+        return redirect(url_for('despachos', sku=sku_despachado, cantidad_hoja=tarea.cantidad))
+
+    # Si terminó, vuelve a la lista general
+    return redirect(url_for('ver_picking'))
+
+@app.route('/despachos')
+@login_required
+def despachos():
+    # 1. Capturamos los datos que vienen de la URL
+    sku_buscado = request.args.get('sku', '').strip()
+    posicion_filtro = request.args.get('posicion_filtro', '').strip()
+    cantidad_hoja = request.args.get('cantidad_hoja', '')
+
+    resultados = []
+
+    if sku_buscado:
+        # Buscamos el producto y que tenga stock > 0
+        query = Item.query.join(Producto).filter(
+            (Producto.sku == sku_buscado) | (Producto.ean == sku_buscado),
+            Item.cantidad > 0
+        )
+
+        # LA CLAVE ESTÁ ACÁ: Solo filtramos la posición si NO venimos del picking.
+        # Al venir del picking (cantidad_hoja tiene un número), esto se ignora y muestra TODO.
+        if posicion_filtro and not cantidad_hoja:
+            query = query.join(Ubicacion).filter(Ubicacion.codigo_unico == posicion_filtro)
+
+        resultados = query.all()
+
+    return render_template('despachos.html',
+                           resultados=resultados,
+                           sku=sku_buscado,
+                           posicion_filtro=posicion_filtro,
+                           cantidad_hoja=cantidad_hoja)
+
+
+
+
+# --- ANULAR PEDIDO (CON REGISTRO EN HISTORIAL) ---
+@app.route('/anular_tarea/<int:tarea_id>', methods=['POST'])
+@login_required
+def anular_tarea(tarea_id):
+    if current_user.rol not in ['admin', 'ruteador', 'Ruteador']:
+        flash('⚠️ Acceso denegado.')
+        return redirect(request.referrer or url_for('ver_picking'))
+
+    tarea = TareaPicking.query.get_or_404(tarea_id)
+
+    # 🔥 CAMBIO AQUÍ: En 'transporte' guardamos el Lote/Zona que trae el número de orden
+    nuevo_h = HistorialDespacho(
+        fecha=datetime.now(),
+        sku=tarea.sku,
+        descripcion=tarea.descripcion or "Sin descripción",
+        cantidad=tarea.cantidad,
+        origen="ANULADO",
+        usuario=current_user.username,
+        transporte=f"🚫 ANULADO: {tarea.zona}" # <--- Esto guardará: "ANULADO: Carga #0903-1145 - OCA"
+    )
+    
+    db.session.add(nuevo_h)
+    db.session.delete(tarea)
+    db.session.commit()
+
+    flash(f'🚫 Pedido {tarea.sku} del lote {tarea.zona} anulado y registrado.')
+    return redirect(request.referrer or url_for('ver_picking'))
+@app.route('/historial')
+@login_required
+def historial():
+    # 1. Despachos (Todo lo que no sea anulación ni ajuste)
+    despachos = HistorialDespacho.query.filter(
+        HistorialDespacho.origen != "ANULADO",
+        HistorialDespacho.origen != "AJUSTE"
+    ).order_by(HistorialDespacho.fecha.desc()).all()
+
+    # 2. Anulados (Filtrado por origen)
+    anulados = HistorialDespacho.query.filter_by(origen="ANULADO").order_by(HistorialDespacho.fecha.desc()).all()
+
+    # 3. Ajustes de Stock (Filtrado por origen)
+    ajustes = HistorialDespacho.query.filter_by(origen="AJUSTE").order_by(HistorialDespacho.fecha.desc()).all()
+
+    return render_template('historial.html', despachos=despachos, anulados=anulados, ajustes=ajustes)
+
+@app.route('/ajustar_stock/<int:item_id>', methods=['POST'])
+@login_required
+def ajustar_stock(item_id):
+    if current_user.rol not in ['admin', 'stock']:
+        flash('⚠️ Acceso denegado.')
+        return redirect(request.referrer)
+
+    # USAMOS 'Item' EN LUGAR DE 'UbicacionItem'
+    item = Item.query.get_or_404(item_id)
+
+    nueva_cantidad = int(request.form.get('nueva_cantidad'))
+    motivo = request.form.get('motivo')
+    cantidad_anterior = item.cantidad
+
+    hora_argentina = datetime.now(ZoneInfo('America/Argentina/Buenos_Aires')).replace(tzinfo=None)
+
+    # Registro en la tabla de Ajustes
+    registro_ajuste = HistorialAjuste(
+        fecha=hora_argentina,
+        sku=item.producto_detalle.sku,
+        descripcion=item.producto_detalle.descripcion,
+        cantidad_anterior=cantidad_anterior,
+        cantidad_nueva=nueva_cantidad,
+        motivo=motivo,
+        ubicacion=f"{item.ubicacion.rack.nombre} - N{item.ubicacion.nivel} - P{item.ubicacion.posicion}",
+        usuario=current_user.username
+    )
+
+    # Registro en el Historial General
+    diferencia = nueva_cantidad - cantidad_anterior
+    tipo = "AJUSTE POSITIVO" if diferencia > 0 else "AJUSTE NEGATIVO"
+    ubicacion_fisica = f"{item.ubicacion.rack.nombre} - N{item.ubicacion.nivel} - P{item.ubicacion.posicion}"
+
+    registro_general = HistorialDespacho(
+        fecha=hora_argentina,
+        sku=item.producto_detalle.sku,
+        descripcion=item.producto_detalle.descripcion,
+        cantidad=abs(diferencia),
+        # Guardamos el tipo y la ubicación en transporte para que lo veas en la tabla
+        transporte=f"🔧 {tipo} en {ubicacion_fisica} ({motivo})",
+        origen="AJUSTE",  # <--- CLAVE: Esto lo manda directo a la solapa de Ajustes
+        usuario=current_user.username
+    )
+
+    # Aplicar cambios
+    item.cantidad = nueva_cantidad
+    if item.cantidad <= 0:
+        db.session.delete(item)
+
+    db.session.add(registro_ajuste)
+    db.session.add(registro_general)
+    db.session.commit()
+
+    flash('✅ Inventario ajustado correctamente.')
+    return redirect(request.referrer)
+
+@app.route('/exportar_historial')
+def exportar_historial():
+    if current_user.rol != 'admin':
+        flash('⚠️ Acceso denegado: Solo los administradores pueden ver el historial.')
+        return redirect(url_for('logistica'))
+
+    # Traemos todos los registros del historial
+    registros = HistorialDespacho.query.order_by(HistorialDespacho.fecha.desc()).all()
+
+    # Creamos un archivo en la memoria del servidor
+    si = io.StringIO()
+    # Usamos punto y coma para que el Excel en español lo separe en columnas automáticamente
+    writer = csv.writer(si, delimiter=';')
+
+    # Escribimos la primera fila con los títulos
+    writer.writerow(['Fecha y Hora', 'Transporte', 'SKU', 'Descripción', 'Cantidad', 'Origen'])
+
+    # Recorremos el historial y escribimos cada fila
+    for r in registros:
+        writer.writerow([
+            r.fecha.strftime('%d/%m/%Y %H:%M'),
+            r.usuario,
+            r.transporte,
+            r.sku,
+            r.descripcion,
+            r.cantidad,
+            r.origen
+        ])
+
+    # utf-8-sig es el truco mágico para que Excel lea perfectamente los acentos y las ñ
+    output = si.getvalue().encode('utf-8-sig')
+
+    # Le decimos al navegador que descargue el archivo en lugar de mostrarlo
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=historial_despachos.csv"}
+    )
+
+    # --- RUTAS DE SEGURIDAD ---
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        user = Usuario.query.filter_by(username=username).first()
+
+        # Verificamos si el usuario existe y si la contraseña (encriptada) coincide
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            return redirect(url_for('logistica'))
+        else:
+            flash('Usuario o contraseña incorrectos.')
+
+    return render_template('login.html')
+
+@app.route('/registro', methods=['GET', 'POST'])
+def registro():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        # ¡ESTO ES LO NUEVO! Capturamos el rol del menú desplegable
+        rol_elegido = request.form.get('rol', 'operario')
+
+        usuario_existente = Usuario.query.filter_by(username=username).first()
+        if usuario_existente:
+            flash('❌ El usuario ya existe.')
+            return redirect(url_for('registro'))
+
+        password_encriptada = generate_password_hash(password)
+
+        # Le pasamos el rol al crear el usuario en la base de datos
+        nuevo_usuario = Usuario(username=username, password=password_encriptada, rol=rol_elegido)
+
+        db.session.add(nuevo_usuario)
+        db.session.commit()
+
+        flash(f'✅ Usuario {username} creado con éxito como {rol_elegido}.')
+        return redirect(url_for('login'))
+
+    return render_template('registro.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+
+@app.route('/actualizar_db')
+def actualizar_db():
+    try:
+        # Arreglar tabla Rack (lo que ya tenías)
+        try:
+            db.session.execute(text('ALTER TABLE rack ADD COLUMN tipo_pos VARCHAR(20) DEFAULT "secuencial"'))
+            db.session.execute(text('ALTER TABLE rack ADD COLUMN multi_nivel INTEGER DEFAULT 1'))
+        except: pass 
+
+        # 🔥 LA NUEVA CURA: Arreglar tabla Historial
+        try:
+            db.session.execute(text("ALTER TABLE historial_despacho ADD COLUMN usuario VARCHAR(50) DEFAULT 'Desconocido'"))
+        except: pass
+
+        db.session.commit()
+        return "✅ ¡Base de datos actualizada con éxito! Ya puedes anular pedidos."
+    except Exception as e:
+        return f"⚠️ Error al actualizar: {str(e)}"
+
+# --- RUTAS DE PICKING Y CARGA DE EXCEL ---
+
+@app.route('/subir_pedidos', methods=['GET', 'POST'])
+@login_required
+def subir_pedidos():
+    if current_user.rol not in ['admin', 'ruteador', 'Ruteador']:
+        flash('⚠️ Acceso denegado.')
+        return redirect(url_for('logistica'))
+
+    if request.method == 'POST':
+        archivo = request.files.get('archivo_excel')
+        if not archivo:
+            flash('❌ No se seleccionó ningún archivo.')
+            return redirect(request.url)
+
+        try:
+            # 1. GENERAMOS UN NÚMERO ÚNICO DE CARGA (Día, Mes, Hora, Minuto)
+            hora_actual = datetime.now(ZoneInfo('America/Argentina/Buenos_Aires'))
+            nro_carga = hora_actual.strftime('%d%m%y-%H%M') # Ej: 090326-1145 (Día, Mes, Año - Hora, Minuto)
+
+            df = pd.read_excel(archivo)
+            for _, fila in df.iterrows():
+                sku_excel = str(fila.get('SKU', '')).strip()
+                cantidad_pedida = int(fila.get('Cantidad', 1))
+
+                # --- LÓGICA DE BÚSQUEDA CON ADVERTENCIA DE FALTANTE ---
+                producto_db = Producto.query.filter((Producto.sku == sku_excel) | (Producto.ean == sku_excel)).first()
+                ubicacion_final = "❌ Sin Stock / No encontrado"
+
+                if producto_db:
+                    items_stock = Item.query.filter(Item.producto_id == producto_db.id, Item.cantidad > 0).all()
+                    stock_total_disponible = sum(item.cantidad for item in items_stock)
+
+                    if items_stock:
+                        ubicaciones_list = [f"{i.ubicacion.codigo_unico} ({i.cantidad})" for i in items_stock]
+                        ubicacion_final = " / ".join(ubicaciones_list)
+
+                        if stock_total_disponible < cantidad_pedida:
+                            ubicacion_final = f"⚠️ INCOMPLETO (Stock: {stock_total_disponible}) | " + ubicacion_final
+
+                # 2. CAPTURAMOS LA COLUMNA Y LE PEGAMOS EL NÚMERO AUTOMÁTICO
+                # (Busca si existe la columna Despacho o Pedido, sino usa "General")
+                despacho_excel = str(fila.get('Despacho', fila.get('Pedido', 'General'))).strip()
+                despacho_final = f"Carga #{nro_carga} - {despacho_excel}"
+
+                nueva_tarea = TareaPicking(
+                    fecha=str(fila.get('Fecha', '')),
+                    zona=despacho_final, # 🔥 ACÁ SE GUARDA FUSIONADO (Ej: Carga #09031145 - OCA)
+                    producto=str(fila.get('Descripción', fila.get('Descripcion', ''))),
+                    ubicacion_excel=ubicacion_final,
+                    sku=sku_excel,
+                    descripcion=str(fila.get('Descripción', fila.get('Descripcion', ''))),
+                    cantidad=cantidad_pedida,
+                    estado='Pendiente'
+                )
+                db.session.add(nueva_tarea)
+
+            db.session.commit()
+            flash(f'✅ Hoja de ruta subida con éxito bajo la Carga #{nro_carga}.')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'❌ Error al procesar Excel: {str(e)}')
+        return redirect(url_for('subir_pedidos'))
+
+    tareas_pendientes = TareaPicking.query.filter_by(estado='Pendiente').all()
+    return render_template('subir_pedidos.html', tareas=tareas_pendientes)
+
+
+@app.route('/picking')
+@login_required
+def ver_picking():
+    tareas = TareaPicking.query.filter_by(estado='Pendiente').all()
+
+    # Agrupamos las tareas por su lote (zona) en un diccionario
+    lotes = {}
+    for t in tareas:
+        if t.zona not in lotes:
+            lotes[t.zona] = []
+        lotes[t.zona].append(t)
+
+    return render_template('picking.html', lotes=lotes)
+
+@app.route('/picking_detalle')
+@login_required
+def picking_detalle():
+    lote = request.args.get('lote')
+    if not lote:
+        return redirect(url_for('ver_picking'))
+
+    # Buscamos solo las tareas de este lote específico
+    tareas = TareaPicking.query.filter_by(estado='Pendiente', zona=lote).all()
+    return render_template('picking_detalle.html', tareas=tareas, lote=lote)
+
+@app.route('/confirmar_pickeo/<int:tarea_id>', methods=['POST'])
+@login_required
+def confirmar_pickeo(tarea_id):
+    tarea = TareaPicking.query.get_or_404(tarea_id)
+
+    # Marcamos la tarea como completada
+    tarea.estado = 'Pickeado'
+    tarea.usuario_asignado = current_user.username
+
+    db.session.commit()
+    flash(f'✅ Item {tarea.sku} pickeado correctamente.')
+    return redirect(url_for('ver_picking'))
+
+# --- BLOQUEO DE CACHÉ PARA EL BOTÓN ATRÁS ---
+@app.after_request
+def add_header(response):
+    """Fuerza al navegador a no guardar las páginas en memoria."""
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
+
+import pandas as pd # Asegúrate de tener instalado pandas (pip install pandas openpyxl)
+
+@app.route('/importar_inventario', methods=['POST'])
+@login_required
+def importar_inventario():
+    if current_user.rol != 'admin':
+        return redirect(url_for('logistica'))
+
+    file = request.files.get('archivo_inventario')
+    if not file:
+        flash("⚠️ No seleccionaste ningún archivo.")
+        return redirect(url_for('logistica'))
+
+    try:
+        df = pd.read_excel(file)
+        df.columns = [str(c).strip().lower() for c in df.columns]
+
+        # Mapeo de columnas (con y sin tildes)
+        c_sku = next((c for c in df.columns if 'sku' in c), None)
+        c_ubi = next((c for c in df.columns if 'ubicacion' in c or 'ubicación' in c), None)
+        c_cant = next((c for c in df.columns if 'cant' in c), None)
+
+        if not all([c_sku, c_ubi, c_cant]):
+            flash(f"❌ Columnas no encontradas. Asegúrate de tener: SKU, Ubicacion y Cantidad.")
+            return redirect(url_for('logistica'))
+
+        conteo_nuevos = 0
+        conteo_actualizados = 0
+
+        for i, row in df.iterrows():
+            sku_val = str(row[c_sku]).strip().upper()
+            ubi_val = str(row[c_ubi]).strip().upper()
+            cant_val = int(row[c_cant])
+            sub_val = str(row.get('sub-ubicacion', 'General')).strip()
+
+            prod = Producto.query.filter_by(sku=sku_val).first()
+            ubi = Ubicacion.query.filter(Ubicacion.codigo_unico.like(f"{ubi_val}%")).first()
+
+            if prod and ubi:
+                # 🔥 BUSCAMOS SI YA EXISTE ESTE PRODUCTO EN ESTA POSICIÓN Y SUB-UBICACIÓN
+                item_existente = Item.query.filter_by(
+                    producto_id=prod.id, 
+                    ubicacion_id=ubi.id, 
+                    sub_ubicacion=sub_val
+                ).first()
+
+                if item_existente:
+                    # SI EXISTE: Sumamos la cantidad nueva a la que ya había
+                    item_existente.cantidad += cant_val
+                    conteo_actualizados += 1
+                else:
+                    # SI NO EXISTE: Creamos el registro nuevo
+                    nuevo_item = Item(
+                        producto_id=prod.id,
+                        ubicacion_id=ubi.id,
+                        cantidad=cant_val,
+                        sub_ubicacion=sub_val
+                    )
+                    db.session.add(nuevo_item)
+                    conteo_nuevos += 1
+            else:
+                print(f"❌ Fila {i+2}: SKU o Ubicación no coinciden.")
+
+        db.session.commit()
+        
+        flash(f"✅ Proceso terminado: {conteo_nuevos} nuevos y {conteo_actualizados} actualizados.")
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ Error crítico: {str(e)}")
+
+    return redirect(url_for('logistica'))
+
+@app.route('/exportar_stock')
+@login_required
+def exportar_stock():
+    # Solo el Admin puede bajar el inventario completo
+    if current_user.rol != 'admin':
+        flash("⚠️ No tienes permisos para exportar el stock.")
+        return redirect(url_for('logistica'))
+
+    # Traemos todos los items con sus relaciones
+    items = Item.query.all()
+    
+    # Creamos la lista de datos para el Excel
+    data = []
+    for i in items:
+        data.append({
+            'Rack': i.ubicacion.rack.nombre,
+            'Nivel': i.ubicacion.nivel,
+            'Posicion': i.ubicacion.posicion,
+            'Ubicacion Completa': i.ubicacion.codigo_unico.split('-ID')[0],
+            'SKU': i.producto_detalle.sku,
+            'Descripcion': i.producto_detalle.descripcion,
+            'Cantidad': i.cantidad,
+            'Sub-Ubicacion': i.sub_ubicacion
+        })
+
+    if not data:
+        flash("⚠️ El depósito está vacío, no hay nada que exportar.")
+        return redirect(url_for('logistica'))
+
+    # Convertimos a DataFrame de Pandas
+    df = pd.DataFrame(data)
+    
+    # Creamos el archivo en memoria
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Inventario Real')
+
+    output.seek(0)
+    
+    fecha_hoy = datetime.now().strftime("%d-%m-%Y_%H%M")
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'Stock_WMS_{fecha_hoy}.xlsx'
+    )
+
+
+
+if __name__ == '__main__':
+    print("Iniciando WMS Profesional en puerto 5001...")
+    app.run(debug=True, port=5001)

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Picking - Lotes Pendientes</title>
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --primary-dark: #0b5ed7;
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-radius: 16px;
+        }
+
+        /* 🔥 2. BLOQUEO DE SCROLL LATERAL FANTASMA 🔥 */
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text-main); 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* NAVBAR RESPONSIVA */
+        .navbar { 
+            background-color: #0f172a; 
+            color: white; 
+            padding: 15px 25px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            position: sticky; 
+            top: 0; 
+            z-index: 100; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+        }
+        .navbar h2 { margin: 0; font-size: 24px; display: flex; align-items: center; gap: 10px; }
+        
+        .btn-volver { 
+            background: #334155; 
+            color: white; 
+            text-decoration: none; 
+            padding: 12px 24px; 
+            border-radius: 10px; 
+            font-weight: bold; 
+            font-size: 16px; 
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .container { padding: 25px; max-width: 1400px; margin: 0 auto; }
+        
+        .section-header { 
+            margin-bottom: 25px; 
+            border-bottom: 2px solid #e2e8f0; 
+            padding-bottom: 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .section-header h3 { margin: 0; font-size: 26px; color: #334155; }
+        .badge-count { 
+            background: var(--primary); 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 30px; 
+            font-size: 16px; 
+            font-weight: bold; 
+        }
+
+        .lotes-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); 
+            gap: 25px; 
+        }
+        
+        .lote-card { 
+            background: var(--card-bg); 
+            border-radius: var(--border-radius); 
+            padding: 25px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            border: 1px solid #e2e8f0; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+            transition: transform 0.2s;
+        }
+        .lote-card:hover { transform: translateY(-3px); }
+
+        .lote-title { font-size: 22px; font-weight: 800; color: #1e293b; margin-bottom: 5px; }
+        
+        .lote-stats { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+        .stat-badge { 
+            background: #f1f5f9; 
+            color: #475569; 
+            padding: 10px 15px; 
+            border-radius: 10px; 
+            font-size: 15px; 
+            font-weight: 700; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            border: 1px solid #e2e8f0;
+        }
+        
+        .btn-preparar { 
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            background: var(--primary); 
+            color: white; 
+            padding: 18px; 
+            border-radius: 12px; 
+            text-decoration: none; 
+            font-size: 18px; 
+            font-weight: bold; 
+            box-shadow: 0 4px 10px rgba(13, 110, 253, 0.3);
+            margin-top: auto; 
+            width: 100%;
+            box-sizing: border-box;
+            transition: 0.2s;
+        }
+        .btn-preparar:active { transform: scale(0.98); opacity: 0.9; }
+
+        .empty-state { 
+            text-align: center; 
+            padding: 80px 20px; 
+            background: white; 
+            border-radius: 20px; 
+            border: 3px dashed #cbd5e1; 
+            color: #64748b; 
+            grid-column: 1 / -1; 
+        }
+
+        /* 🔥 ANIMACIÓN PARA LA CHAPITA DE FÁBRICA 🔥 */
+        @keyframes pulse-fabrica {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(22, 163, 74, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+        }
+
+        /* 🔥 3. MODO CELULAR 🔥 */
+        @media (max-width: 768px) {
+            .navbar { padding: 15px; flex-direction: column; text-align: center; gap: 10px; }
+            .navbar h2 { font-size: 20px; }
+            .btn-volver { width: 100%; justify-content: center; }
+
+            .container { padding: 15px; }
+            .section-header { flex-direction: column; text-align: center; gap: 15px; }
+            .section-header h3 { font-size: 22px; }
+
+            .lotes-grid { grid-template-columns: 1fr; gap: 15px; }
+            .lote-card { padding: 20px; }
+            .lote-title { font-size: 20px; }
+            
+            .btn-preparar { padding: 20px; font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2>📦 Rutas de Picking</h2>
+        <a href="{{ url_for('logistica') }}" class="btn-volver">← Volver al Mapa</a>
+    </div>
+
+    <div class="container">
+        
+        <div class="section-header">
+            <h3>Lotes Pendientes de Armado</h3>
+            <div class="badge-count">{{ lotes|length }} Cargas</div>
+        </div>
+
+        <div class="lotes-grid">
+            {% if lotes %}
+                {% for nombre_lote, tareas_lote in lotes.items() %}
+                <div class="lote-card">
+                    <div class="lote-header">
+                        <div class="lote-title">{{ nombre_lote }}</div>
+                    </div>
+                    
+                    <div class="lote-stats">
+                        <div class="stat-badge">
+                            🛒 {{ tareas_lote|length }} SKUs
+                        </div>
+                        
+                        {% if tiempos_inicio.get(nombre_lote) %}
+                        <div class="stat-badge" style="background-color: #fef2f2; color: #dc2626; border-color: #fecaca;">
+                            ⏱️ <span class="live-timer" data-start="{{ tiempos_inicio[nombre_lote] }}">00:00</span>
+                        </div>
+                        {% else %}
+                        <div class="stat-badge" style="background-color: #fff7ed; color: #c2410c; border-color: #ffedd5;">
+                            ⚡ Esperando
+                        </div>
+                        {% endif %}
+
+                        {% if nombre_lote in cargas_con_fabrica_lista %}
+                        <div class="stat-badge" title="Tus productos te esperan en fábrica" 
+                             style="background-color: #dcfce7; color: #166534; border-color: #86efac; animation: pulse-fabrica 2s infinite;">
+                            🏭 LISTO EN FÁBRICA
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <a href="{{ url_for('picking_detalle', lote=nombre_lote) }}" class="btn-preparar">
+                        {% if tiempos_inicio.get(nombre_lote) %}
+                            Continuar Recolección ➔
+                        {% else %}
+                            Iniciar Recolección ➔
+                        {% endif %}
+                    </a>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <span style="font-size: 50px;">🎉</span>
+                    <div style="font-size: 24px; font-weight: bold;">¡Todo al día!</div>
+                    <p>No hay lotes de picking pendientes.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener("pageshow", function(event) {
+            if (event.persisted) window.location.reload();
+        });
+
+        function actualizarCronometros() {
+            const timers = document.querySelectorAll('.live-timer');
+            const now = new Date().getTime();
+        
+            timers.forEach(timer => {
+                const startStr = timer.getAttribute('data-start');
+                if (!startStr || startStr.includes('None')) return;
+            
+                let cleanStr = startStr.replace('T', ' ').split('.')[0].replace(/-/g, '/');
+                let startTime = new Date(cleanStr).getTime();
+            
+                // Escudo Anti-Futuro
+                if (startTime > now) {
+                    startTime = startTime - (3 * 60 * 60 * 1000); 
+                    if (startTime > now) startTime = now;
+                }
+            
+                let diff = Math.floor((now - startTime) / 1000);
+                if (isNaN(diff) || diff < 0) diff = 0;
+
+                const horas = Math.floor(diff / 3600);
+                const minutos = Math.floor((diff % 3600) / 60);
+                const segundos = diff % 60;
+
+                let display = "";
+                if (horas > 0) display += (horas < 10 ? "0" + horas : horas) + ":";
+                display += (minutos < 10 ? "0" + minutos : minutos) + ":";
+                display += (segundos < 10 ? "0" + segundos : segundos);
+
+                timer.innerText = display;
+            });
+        }
+        setInterval(actualizarCronometros, 1000);
+        actualizarCronometros();
+    </script>
+</body>
+</html>

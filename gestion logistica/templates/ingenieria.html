@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingeniería - WMS</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #0f172a; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; }
+        .btn-nav { background: #334155; color: white; text-decoration: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; }
+        
+        /* Buscador Live */
+        .search-box { background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; }
+        .search-box input { width: 100%; padding: 15px; border: 2px solid #e2e8f0; border-radius: 10px; outline: none; font-size: 16px; box-sizing: border-box; transition: 0.3s; }
+        .search-box input:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
+        
+        /* Indicador de carga */
+        #loader { display: none; position: absolute; right: 30px; top: 30px; color: #6366f1; font-weight: bold; font-size: 14px; }
+
+        .grid-productos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .card-producto { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; transition: 0.3s; display: flex; flex-direction: column; }
+        .card-producto:hover { transform: translateY(-5px); box-shadow: 0 12px 20px rgba(0,0,0,0.1); border-color: #6366f1; }
+        
+        .img-container { width: 100%; height: 160px; background: #f8fafc; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #f1f5f9; }
+        .img-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        
+        .info-prod { padding: 15px; flex-grow: 1; }
+        .sku-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0; }
+        .desc-text { font-size: 13px; color: #64748b; margin: 5px 0 15px 0; min-height: 35px; }
+        
+        .btn-config { background: #6366f1; color: white; text-decoration: none; padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; display: block; transition: 0.2s; }
+        .btn-config:hover { background: #4f46e5; }
+        
+        .badge-bom { background: #f0fdf4; color: #16a34a; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #bbf7d0; }
+        .badge-no-bom { background: #fef2f2; color: #dc2626; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fecaca; }
+
+        /* Paginación Estilizada */
+        .pagination-container { margin-top: 30px; display: flex; justify-content: center; gap: 8px; padding-bottom: 40px; }
+        .btn-pag { background: white; color: #475569; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; border: 1px solid #e2e8f0; transition: 0.2s; }
+        .btn-pag:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-pag.active { background: #0f172a; color: white; border-color: #0f172a; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">🔬 Ingeniería / BOM</h2>
+        <a href="{{ url_for('home') }}" class="btn-nav">🏠 Inicio</a>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="liveSearch" value="{{ q }}" placeholder="🔍 Empezá a escribir el SKU o nombre del producto..." autocomplete="off">
+        <div id="loader">⏳ Buscando...</div>
+    </div>
+
+    <div id="contenedorResultados">
+        <div class="grid-productos">
+            {% for p in productos %}
+            <div class="card-producto">
+                <div class="img-container">
+                    <img src="{{ url_for('static', filename='img/repuestos/' + p.imagen) if p.imagen and p.imagen != 'sin_foto.png' else url_for('static', filename='img/repuestos/sin_foto.png') }}" alt="Foto">
+                </div>
+                <div class="info-prod">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <h3 class="sku-title">{{ p.sku }}</h3>
+                        {% if p.componentes_receta %}
+                            <span class="badge-bom">RECETA OK</span>
+                        {% else %}
+                            <span class="badge-no-bom">SIN DATOS</span>
+                        {% endif %}
+                    </div>
+                    <p class="desc-text">{{ p.descripcion }}</p>
+                    <a href="{{ url_for('ver_receta', prod_id=p.id) }}" class="btn-config">🛠️ Configurar Receta</a>
+                </div>
+            </div>
+            {% else %}
+            <div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: #64748b; background: white; border-radius: 12px;">
+                <h3>No se encontraron productos.</h3>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if pagination.pages > 1 %}
+        <div class="pagination-container">
+            {% if pagination.has_prev %}
+                <a href="{{ url_for('ingenieria', page=pagination.prev_num, q=q) }}" class="btn-pag">⬅️</a>
+            {% endif %}
+
+            <span class="btn-pag active">{{ pagination.page }} / {{ pagination.pages }}</span>
+
+            {% if pagination.has_next %}
+                <a href="{{ url_for('ingenieria', page=pagination.next_num, q=q) }}" class="btn-pag">➡️</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        let timeout = null;
+        const inputBusqueda = document.getElementById('liveSearch');
+        const loader = document.getElementById('loader');
+
+        inputBusqueda.addEventListener('keyup', function() {
+            // Limpiamos el contador cada vez que el usuario presiona una tecla
+            clearTimeout(timeout);
+            
+            // Si el usuario deja de escribir por 500ms, disparamos la búsqueda
+            timeout = setTimeout(function() {
+                const query = inputBusqueda.value.trim();
+                loader.style.display = 'block';
+                
+                // Redirigimos a la misma página con el parámetro de búsqueda
+                // Esto es lo más rápido y seguro para mantener la paginación sincronizada
+                window.location.href = "{{ url_for('ingenieria') }}?q=" + encodeURIComponent(query);
+            }, 500);
+        });
+
+        // Para que el cursor quede al final del texto cuando carga la página
+        window.onload = function() {
+            const val = inputBusqueda.value;
+            inputBusqueda.value = '';
+            inputBusqueda.focus();
+            inputBusqueda.value = val;
+        };
+    </script>
+</body>
+</html>

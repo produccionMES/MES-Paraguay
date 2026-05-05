@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Historial de Remitos</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 20px; }
+        .contenedor { max-width: 1100px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border-bottom: 1px solid #eee; padding: 15px; text-align: left; }
+        th { background: #f8f9fa; color: #666; font-size: 12px; text-transform: uppercase; }
+        .estado-camino { color: #856404; background: #fff3cd; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+        .estado-recibido { color: #0f5132; background: #d1e7dd; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+        .btn-reimprimir { text-decoration: none; background: #6c757d; color: white; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>📋 Historial de Remitos Generados</h2>
+        <div>
+            <a href="{{ url_for('posventa') }}" style="margin-right: 15px; text-decoration: none; color: #6f42c1; font-weight: bold;">← Posventa</a>
+            <a href="{{ url_for('logistica') }}" style="text-decoration: none; color: #6c757d; font-weight: bold;">← Logística</a>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nro Remito</th>
+                <th>Fecha</th>
+                <th>Producto</th>
+                <th>Cant.</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in remitos %}
+            <tr>
+                <td><strong>{{ r.remito_nro }}</strong></td>
+                <td>{{ r.fecha_envio.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ r.sku }} - {{ r.descripcion }}</td>
+                <td style="font-weight: bold;">{{ r.cantidad }}</td>
+                <td>
+                    {% if r.estado == 'En Camino' %}
+                        <span class="estado-camino">🚚 EN CAMINO</span>
+                    {% else %}
+                        <span class="estado-recibido">✅ RECIBIDO</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('ver_remito', trans_id=r.id) }}" target="_blank" class="btn-reimprimir">🖨️ Reimprimir</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reparación Activa - Modo Enfoque</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a1a2e; margin: 0; padding: 20px; color: #333; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .card-taller { background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        .header-activa { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; }
+        .sku-titulo { margin: 0; color: #0d6efd; font-size: 24px; font-weight: 900; }
+        
+        .cronometro-box { background-color: #dc3545; color: white; padding: 10px 20px; border-radius: 8px; font-family: monospace; font-size: 24px; font-weight: bold; box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3); display: flex; align-items: center; gap: 10px; }
+        .dot { height: 12px; width: 12px; background-color: white; border-radius: 50%; display: inline-block; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+
+        .info-box { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #ffc107; border-radius: 4px; margin-bottom: 25px; font-size: 14px; }
+        
+        label { font-weight: bold; font-size: 13px; color: #495057; display: block; margin-bottom: 5px; }
+        textarea, input, select { width: 100%; box-sizing: border-box; margin-bottom: 15px; padding: 12px; border-radius: 6px; border: 1px solid #ced4da; font-family: inherit; font-size: 14px; }
+        
+        .btn-finalizar { background-color: #198754; color: white; border: none; padding: 15px; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-finalizar:hover { background-color: #157347; transform: translateY(-2px); }
+
+        /* Botones de salida inferior */
+        .contenedor-salida { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px dashed #dee2e6; }
+        .btn-secundario { flex: 1; text-decoration: none; padding: 12px; border-radius: 6px; font-size: 12px; font-weight: bold; text-align: center; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        
+        .btn-pausa { background: #ffc107; color: #000; border: 1px solid #e0a800; }
+        .btn-pausa:hover { background: #e0a800; }
+        
+        .btn-cancelar { background: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .btn-cancelar:hover { background: #f1b0b7; }
+    </style>
+</head>
+<body>
+
+<div class="card-taller">
+    <div class="header-activa">
+        <div>
+            <p style="margin:0; font-size: 11px; color: #6c757d; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Reparación en curso</p>
+            <h2 class="sku-titulo">{{ reparacion.sku }}</h2>
+            <p style="margin:5px 0 0 0; font-size: 12px; font-weight: bold; color: #6f42c1;">Cant: {{ reparacion.cantidad }} un. | Origen: {{ reparacion.ubicacion_origen }}</p>
+        </div>
+        
+        <div class="cronometro-box">
+            <span class="dot"></span>
+            <span id="tiempoDisplay">00:00:00</span>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <strong style="color: #842029;">⚠️ Falla Reportada:</strong><br>
+        <span style="font-style: italic; color: #555;">{{ reparacion.falla_reportada or 'El equipo ingresó sin observaciones.' }}</span>
+    </div>
+
+    <form action="{{ url_for('finalizar_reparacion', rep_id=reparacion.id) }}" method="POST">
+        <label>Diagnóstico Técnico / Trabajo Realizado:</label>
+        <textarea name="diagnostico" rows="3" required placeholder="Ej: Se reemplazó la plaqueta principal..."></textarea>
+
+        <label>Repuestos Utilizados (Si aplica):</label>
+        <input type="text" name="repuestos" placeholder="Ej: 1x Plaqueta, 2x Tornillos T8">
+
+        <label>Estado Final del Equipo:</label>
+        <select name="resolucion_calidad" style="border: 2px solid #6f42c1; font-weight: bold; background-color: #fcfaff;">
+            <option value="apto">✅ APTO (Vuelve a Stock)</option>
+            <option value="outlet">💰 OUTLET (Detalles estéticos)</option>
+            <option value="desguace">🗑️ DESGUACE (Baja definitiva)</option>
+        </select>
+
+        <button type="submit" class="btn-finalizar">💾 Finalizar Reparación</button>
+    </form>
+
+    <div class="contenedor-salida">
+        <a href="{{ url_for('pausar_reparacion', rep_id=reparacion.id) }}" class="btn-secundario btn-pausa">
+            ☕ Pausar / Almuerzo
+        </a>
+
+        <a href="{{ url_for('cancelar_reparacion', rep_id=reparacion.id) }}" 
+           onclick="return confirm('¿Seguro? Se perderá el tiempo transcurrido y volverá a Pendientes.')" 
+           class="btn-secundario btn-cancelar">
+            🚫 Cancelar (Error)
+        </a>
+    </div>
+</div>
+
+<script>
+    // Sumamos el tiempo acumulado (de sesiones previas) + el tiempo de la sesión actual
+    let segundosAcumulados = {{ reparacion.tiempo_acumulado or 0 }};
+    let segundosActuales = {{ segundos_inicio }};
+    let segundosTotales = segundosAcumulados + segundosActuales;
+
+    const display = document.getElementById('tiempoDisplay');
+
+    function actualizarCronometro() {
+        segundosTotales++;
+        let horas = Math.floor(segundosTotales / 3600);
+        let minutos = Math.floor((segundosTotales % 3600) / 60);
+        let segundos = segundosTotales % 60;
+        
+        display.innerText = `${horas < 10 ? "0"+horas : horas}:${minutos < 10 ? "0"+minutos : minutos}:${segundos < 10 ? "0"+segundos : segundos}`;
+    }
+
+    actualizarCronometro();
+    setInterval(actualizarCronometro, 1000);
+</script>
+
+</body>
+</html>

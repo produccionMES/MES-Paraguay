@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulo de Producción - WMS</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 10px; }
+        .btn-nav { background: #334155; color: white; text-decoration: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; transition: 0.2s; white-space: nowrap; border: none; cursor: pointer; font-size: 14px;}
+        .btn-nav:hover { background: #475569; }
+        
+        .grid-ordenes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .card-orden { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 15px; position: relative;}
+        .card-orden.en-proceso { border-top: 5px solid #0d6efd; background: #f0f9ff; }
+        .card-orden.pendiente { border-top: 5px solid #f59e0b; }
+        .card-orden.finalizado { border-top: 5px solid #10b981; background: #f0fdf4; }
+        
+        .sku-title { font-size: 22px; font-weight: 900; color: #0f172a; margin: 0; }
+        .lote-badge { background: #e2e8f0; color: #475569; padding: 5px 10px; border-radius: 6px; font-size: 13px; font-weight: bold; display: inline-block; margin-top: 5px;}
+        
+        .btn-accion { padding: 15px; border-radius: 8px; font-weight: bold; font-size: 16px; border: none; cursor: pointer; text-align: center; width: 100%; transition: 0.2s; }
+        .btn-iniciar { background: #0d6efd; color: white; }
+        .btn-finalizar { background: #16a34a; color: white; }
+        .btn-anular { background: #ef4444; color: white; margin-top: 10px; padding: 10px; font-size: 14px;}
+        
+        .btn-imprimir { background: #0ea5e9; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; margin-top: 8px; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-imprimir:hover { background: #0284c7; }
+        
+        .timer-box { background: #1e293b; color: #38bdf8; padding: 10px; border-radius: 8px; text-align: center; font-weight: 900; font-size: 1.2em; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .timer-paused { color: #f59e0b; border: 2px dashed #f59e0b; } 
+        
+        .panel-planificador { background: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-left: 5px solid #8b5cf6;}
+        .form-plan { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; min-width: 150px;}
+        .input-group label { font-size: 13px; font-weight: bold; color: #64748b; display: flex; justify-content: space-between; align-items: center;}
+        .input-group input { padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; outline: none; font-weight: bold; color: #334155; width: 100%; box-sizing: border-box;}
+        
+        /* 🔥 ANIMACIÓN DE URGENTE 🔥 */
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* 🔥 ANIMACIÓN CARTEL REMITO 🔥 */
+        @keyframes slideUp {
+            from { transform: translate(-50%, 50px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; }
+        .modal-body { overflow-y: auto; flex-grow: 1; }
+        .table-modal { width: 100%; border-collapse: collapse; }
+        .table-modal th, .table-modal td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .table-modal tr { cursor: pointer; transition: 0.2s; }
+        .table-modal tr:hover { background-color: #f8fafc; }
+        .btn-close { background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        
+        .link-avanzado { color: #8b5cf6; font-size: 11px; cursor: pointer; background: #ede9fe; padding: 3px 8px; border-radius: 4px; transition: 0.2s; }
+        .link-avanzado:hover { background: #ddd6fe; color: #6d28d9; }
+
+        /* BARRA DE BÚSQUEDA */
+        .search-container { background: white; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; }
+        .search-input { flex-grow: 1; padding: 12px 15px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 16px; font-weight: bold; color: #334155; outline: none; transition: border-color 0.2s; }
+        .search-input:focus { border-color: #0d6efd; }
+        
+        /* 🔥 ESTILOS CALENDARIO EXCEL 🔥 */
+        .calendario-table th { background: #f8fafc; color: #475569; padding: 12px; font-size: 12px; border: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 5; text-transform: uppercase;}
+        .calendario-table td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+        .col-fija { position: sticky; left: 0; background: white; z-index: 4; border-right: 2px solid #cbd5e1 !important; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+        .celda-cantidad { background: #22c55e; color: white; font-weight: 900; font-size: 14px; padding: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(34,197,94,0.3); display: inline-block; min-width: 25px;}
+        .celda-vacia { color: #cbd5e1; font-weight: bold; font-size: 12px; }
+
+        /* 🔥 LAYOUT DIVIDIDO 🔥 */
+        .main-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .column-cards { flex: 1; min-width: 0; }
+        .column-totales { width: 320px; flex-shrink: 0; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; }
+        
+        @media (max-width: 1024px) {
+            .main-layout { flex-direction: column; }
+            .column-totales { width: 100%; position: static; max-height: none; margin-bottom: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="modalCalendarioProd" class="modal-overlay" onclick="cerrarModalCalendario(event)">
+        <div class="modal-content" style="max-width: 1300px; padding: 20px;" onclick="event.stopPropagation()">
+            <button class="btn-close" style="position: absolute; right: 15px; top: 15px;" onclick="cerrarModalCalendario()">✖</button>
+            <h3 style="margin: 0 0 5px 0; color: #0f172a; font-size: 20px; display: flex; align-items: center; gap: 8px;">
+                🗓️ Cronograma de Producción (Próximos 15 días)
+            </h3>
+            <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 20px;">
+                Resumen de todos los pedidos que Planificación y Logística programaron para la fábrica.
+            </p>
+            
+            <div style="overflow: auto; max-height: 60vh; border-radius: 8px; border: 1px solid #cbd5e1;">
+                <table class="calendario-table" style="width: 100%; border-collapse: collapse; min-width: 1000px;">
+                    <thead>
+                        <tr>
+                            <th class="col-fija" style="width: 250px; text-align: left; z-index: 6;">SKU / Producto</th>
+                            {% for dia in dias_headers %}
+                                <th>{{ dia }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fila in datos_calendario %}
+                        <tr style="transition: 0.2s;">
+                            <td class="col-fija" style="text-align: left;">
+                                <div style="font-weight: 900; color: #1e293b; font-size: 14px;">{{ fila.sku }}</div>
+                                <div style="font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px;">
+                                    {{ fila.descripcion }}
+                                </div>
+                            </td>
+                            {% for cant in fila.cantidades %}
+                                <td>
+                                    {% if cant > 0 %}
+                                        <span class="celda-cantidad">{{ cant }}</span>
+                                    {% else %}
+                                        <span class="celda-vacia">-</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="{{ dias_headers|length + 1 }}" style="padding: 40px; text-align: center; color: #64748b;">
+                                📭 No hay producción programada para los próximos 15 días.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalConfig" class="modal-overlay" onclick="if(event.target === this) document.getElementById('modalConfig').style.display='none'">
+        <div class="modal-content" style="max-width: 350px;">
+            <div class="modal-header">
+                <h3 style="margin: 0; color: #0f172a;">⏱️ Configurar Almuerzo</h3>
+                <button type="button" class="btn-close" style="padding: 5px 10px;" onclick="document.getElementById('modalConfig').style.display='none'">✖</button>
+            </div>
+            <p style="font-size: 13px; color: #64748b; margin-top: 0;">Durante este horario, los cronómetros de producción se detendrán automáticamente.</p>
+            <form action="{{ url_for('configurar_almuerzo') }}" method="POST">
+                <div style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 10px 0; color: #0f172a; font-size: 14px;">☕ Desayuno / Merienda</h4>
+                    <div style="display: flex; gap: 10px;">
+                        <div class="input-group">
+                            <label>Inicio:</label>
+                            <input type="time" name="desayuno_inicio" value="{{ config_alm.desayuno_inicio if config_alm and config_alm.desayuno_inicio else '09:00' }}" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Fin:</label>
+                            <input type="time" name="desayuno_fin" value="{{ config_alm.desayuno_fin if config_alm and config_alm.desayuno_fin else '09:30' }}" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 10px 0; color: #0f172a; font-size: 14px;">🍽️ Almuerzo</h4>
+                    <div style="display: flex; gap: 10px;">
+                        <div class="input-group">
+                            <label>Inicio:</label>
+                            <input type="time" name="inicio" value="{{ config_alm.almuerzo_inicio if config_alm else '12:00' }}" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Fin:</label>
+                            <input type="time" name="fin" value="{{ config_alm.almuerzo_fin if config_alm else '13:00' }}" required>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <label style="font-size: 12px; font-weight: bold; color: #64748b;">SKU Maestro para "A Medida"</label>
+                        <input type="text" name="sku_maestro_a_medida" value="{{ config_alm.sku_maestro_a_medida if config_alm and config_alm.sku_maestro_a_medida else 'CORT9999' }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-weight: bold; color: #0f172a;">
+                        <small style="color: #94a3b8; font-size: 11px;">El despiece de Producción tomará la receta de este código.</small>
+                    </div>
+
+                </div>
+                <button type="submit" class="btn-accion btn-finalizar" style="width: 100%;">💾 Guardar Horarios</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">🏭 Planta de Producción</h2>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            
+            {% if current_user.rol in ['admin', 'jefe_produccion', 'planificacion','supervisor', 'supervisor_produccion', 'supervisor_produccio', 'encargado'] %}
+                <button type="button" onclick="document.getElementById('modalConfig').style.display='flex'" class="btn-nav" style="background: #475569;" title="Pausas y Almuerzos">⚙️ Configurar</button>
+                <a href="{{ url_for('gestionar_usuarios', sector='produccion') }}" class="btn-nav" style="background: #8b5cf6;">👥 Personal</a>
+                <a href="{{ url_for('historial_produccion') }}" class="btn-nav" style="background: #0ea5e9;">📋 Historial de Tiempos</a>
+            {% endif %}
+
+            <button type="button" class="btn-nav" style="background: #2563eb;" onclick="abrirModalCalendario()">🗓️ Ver Cronograma</button>
+            
+            <a href="{{ url_for('home') }}" class="btn-nav">🏠 Inicio</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="background-color: {% if category == 'error' %}#f8d7da{% else %}#d1e7dd{% endif %}; 
+                      color: {% if category == 'error' %}#842029{% else %}#0f5132{% endif %}; 
+                      padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; text-align: center;">
+              {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
+        <div class="panel-planificador" style="flex: 1; min-width: 350px; margin-bottom: 0; border-left-color: #0ea5e9;">
+            <h3 style="margin: 0 0 10px 0; color: #0f172a;">🖨️ Impresión Rápida de Etiquetas</h3>
+            <p style="margin: 0 0 15px 0; font-size: 13px; color: #64748b;">Buscá por SKU o Nombre e imprimí copias adicionales si es necesario.</p>
+            
+            <div class="form-plan">
+                <div class="input-group" style="flex-grow: 2;">
+                    <label>
+                        Buscar Producto
+                        <span class="link-avanzado" style="background: #e0f2fe; color: #0284c7;" onclick="abrirBuscadorAvanzado()">🔍 Ver Catálogo</span>
+                    </label>
+                    <input list="lista_etiquetas" id="sku_etiqueta_manual" placeholder="Escribí y presioná ENTER..." autocomplete="off" oninput="buscarEtiquetasRapidas(this.value)" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); abrirBuscadorAvanzado(this.value); }">
+                    <datalist id="lista_etiquetas"></datalist>
+                </div>
+                <div class="input-group" style="flex-grow: 0; width: 90px;">
+                    <label>Copias</label>
+                    <input type="number" id="copias_etiqueta_manual" min="1" value="1">
+                </div>
+                <button type="button" onclick="imprimirEtiquetaManual()" id="btn-print-manual" style="background: #0ea5e9; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; height: 42px;">
+                    🖨️ Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        
+        <div class="column-cards">
+            
+            <div class="search-container">
+                <span style="font-size: 24px;">🔍</span>
+                <input type="text" id="filtroPedidos" class="search-input" placeholder="Filtrar pedidos activos por SKU, descripción o referencia..." onkeyup="filtrarTarjetas()">
+                
+                <a href="{{ url_for('imprimir_pedidos_produccion') }}" target="_blank" style="background: #dc2626; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);">
+                    📄 Descargar PDF
+                </a>
+            </div>
+
+            <div class="grid-ordenes">
+                {% for orden in ordenes %}
+                    {% set es_futura = false %}
+                    {% if orden.fecha_planificada and orden.fecha_planificada > hoy %}
+                        {% set es_futura = true %}
+                    {% endif %}
+                    
+                    <div class="card-orden {% if orden.estado == 'En Proceso' %}en-proceso{% elif orden.estado == 'Finalizado' %}finalizado{% else %}pendiente{% endif %}"
+                         style="{% if es_futura %}opacity: 0.6; filter: grayscale(1); background: #f1f5f9; border-top: 5px solid #cbd5e1 !important; pointer-events: none;{% endif %}">
+                        
+                        <div style="margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                {% if orden.origen_pedido == 'Planificación' %}
+                                    <span style="background: #ede9fe; color: #6d28d9; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #c4b5fd;">📅 PLANIFICACIÓN</span>
+                                {% elif orden.origen_pedido == 'Ventas' %}
+                                    <span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #bbf7d0;">🛍️ VENTAS</span>
+                                {% else %}
+                                    <span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #bae6fd;">🚚 LOGÍSTICA</span>
+                                {% endif %}
+        
+                                <span style="color: #475569; font-size: 11px; font-weight: bold; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                                    🕒 Pedido: {{ orden.fecha_solicitud.strftime('%d/%m - %H:%M') if orden.fecha_solicitud else '--/-- --:--' }}
+                                </span>
+                            </div>
+
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                {% if es_futura %}
+                                    <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-weight: 900; font-size: 11px; border: 2px solid #cbd5e1;">
+                                        🗓️ PARA EL: {{ orden.fecha_planificada.strftime('%d/%m') }}
+                                    </span>
+                                {% endif %}
+
+                                {% if orden.prioridad == 'Urgente' %}
+                                    <span style="background: #fee2e2; color: #b91c1c; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 11px; border: 2px solid #ef4444; display: inline-block; {% if not es_futura %}animation: pulse 2s infinite;{% endif %}">🚨 URGENTE</span>
+                                {% elif orden.prioridad == 'Baja' %}
+                                    <span style="background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; border: 1px solid #cbd5e1;">⚪ BAJA</span>
+                                {% else %}
+                                    <span style="background: #f0fdf4; color: #166534; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; border: 1px solid #bbf7d0;">🟢 NORMAL</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <h3 class="sku-title">{{ orden.sku }}</h3>
+                                <p style="margin: 5px 0 10px 0; color: #475569; font-size: 14px; font-weight: 500;">{{ orden.descripcion }}</p>
+                                
+                                {% if orden.fecha_planificada %}
+                                <div style="margin-bottom: 8px;">
+                                    <span style="background: #fef08a; color: #854d0e; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fde047;">
+                                        🗓️ Fabricar el: {{ orden.fecha_planificada.strftime('%d/%m/%Y') }}
+                                    </span>
+                                </div>
+                                {% endif %}
+
+                                <div class="lote-badge">Ref: {{ orden.lote_referencia }}</div>
+                                
+                                {% if orden.estado == 'En Proceso' and orden.operario_inicio %}
+                                    <div style="margin-top: 8px; font-size: 12px; color: #0284c7; font-weight: bold;">
+                                        👤 Iniciado por: {{ orden.operario_inicio }}
+                                    </div>
+                                {% endif %}
+
+                                {% if orden.sku == 'A MEDIDA' %}
+                                    <br>
+                                    <button type="button" class="btn-imprimir" style="background: #8b5cf6;" onclick="verDespiece('{{ orden.id }}')">
+                                        ✂️ Ver Despiece
+                                    </button>
+                                {% endif %}
+
+                                {% if orden.estado == 'En Proceso' %}
+                                    <br>
+                                    <button type="button" class="btn-imprimir" onclick="imprimirEtiqueta('{{ orden.id }}', {{ orden.cantidad }})">
+                                        🖨️ Imprimir Etiqueta
+                                    </button>
+                                {% endif %}
+
+                            </div>
+                            <div style="background: #1e293b; color: white; padding: 10px 15px; border-radius: 8px; font-size: 24px; font-weight: 900;">
+                                {{ orden.cantidad }}<span style="font-size: 12px; color: #94a3b8;">U</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: auto;">
+                            {% if es_futura %}
+                                <button type="button" class="btn-accion" style="background: #cbd5e1; color: #64748b; cursor: not-allowed; border: 2px dashed #94a3b8;" disabled>
+                                    ⏳ Esperando fecha...
+                                </button>
+
+                            {% elif orden.estado == 'En Proceso' %}
+                                <div class="timer-box" id="timer-box-{{ orden.id }}" style="margin-bottom: 10px;">
+                                    <span>⏱️</span>
+                                    <span class="live-timer" id="timer-text-{{ orden.id }}" data-start="{{ orden.fecha_inicio.isoformat() if orden.fecha_inicio else '' }}">00:00</span>
+                                </div>
+                                
+                                <form action="{{ url_for('finalizar_fabricacion', orden_id=orden.id) }}" method="POST" style="margin: 0;" id="form-finalizar-{{ orden.id }}">
+                                    <button type="button" class="btn-accion btn-finalizar" style="pointer-events: auto;" onclick="preguntarCantidad('{{ orden.id }}', '{{ orden.sku }}', {{ orden.cantidad }})">✅ Finalizar Fabricación</button>
+                                </form>
+
+                            {% elif orden.estado == 'Finalizado' %}
+                                {# --- SI EL PEDIDO ES DE PLANIFICACIÓN O DE VENTAS: Mostramos el Checkbox para Remito --- #}
+                                {% if orden.origen_pedido in ['Planificación', 'Ventas'] %}
+                                    <label style="display: flex; align-items: center; justify-content: center; gap: 10px; background: white; border: 2px solid #8b5cf6; padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.2s;">
+                                        <input type="checkbox" name="ordenes_seleccionadas" value="{{ orden.id }}" class="chk-remito" style="width: 22px; height: 22px; accent-color: #8b5cf6;" onchange="actualizarBannerMasivo()">
+                                        <span style="font-weight: bold; color: #6d28d9; font-size: 15px;">Seleccionar para Remito</span>
+                                    </label>
+                                {# --- SI EL PEDIDO ES DE LOGÍSTICA: Queda igual que antes sin cambios --- #}
+                                {% else %}
+                                    <button type="button" class="btn-accion" style="background: #10b981; color: white; cursor: not-allowed; opacity: 0.8;" disabled>
+                                        ✅ Listo (Esperando a Logística)
+                                    </button>
+                                {% endif %}
+                            {% else %}
+                                <form action="{{ url_for('iniciar_fabricacion', orden_id=orden.id) }}" method="POST" style="margin: 0;" onsubmit="iniciarSinRecargar(event, this, '{{ orden.id }}')">
+                                    <button type="submit" id="btn-iniciar-{{ orden.id }}" class="btn-accion btn-iniciar" style="pointer-events: auto;">▶️ Iniciar Fabricación</button>
+                                </form>
+                            {% endif %}
+
+                            {% if current_user.rol in ['admin', 'supervisor', 'supervisor_produccion', 'supervisor_produccio', 'jefe_produccion', 'planificacion', 'encargado'] %}
+                                <form action="{{ url_for('anular_produccion_planificada', orden_id=orden.id) }}" method="POST" style="margin: 0; margin-top: 10px; pointer-events: auto;" onsubmit="anularSinRecargar(event, this, '{{ orden.id }}')">
+                                    <button type="submit" id="btn-anular-{{ orden.id }}" class="btn-accion btn-anular">🚫 Anular Pedido</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 50px; background: white; border-radius: 12px; color: #64748b;">
+                        <h2 style="font-size: 24px;">🎉 Sin órdenes pendientes</h2>
+                        <p>La fábrica está al día. Las órdenes se ingresarán desde Planificación o Logística.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="column-totales">
+            <h3 style="margin-top: 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                📋 Totales a Fabricar
+                <span style="background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 10px; font-size: 12px;">Activos</span>
+            </h3>
+            
+            {% if resumen_totales %}
+                {% for sku, data in resumen_totales.items() %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding: 12px 0; {% if data.es_urgente %} border-left: 4px solid #dc3545; padding-left: 10px; {% endif %}">
+                        <div>
+                            <strong style="color: #0d6efd; font-size: 1.1em;">{{ sku }}</strong>
+                            {% if data.es_urgente %} <span style="color: #dc3545; font-weight: bold; margin-left: 5px;" title="Contiene pedidos urgentes">🚨</span> {% endif %}
+                            <br>
+                            <span style="color: #6c757d; font-size: 0.9em; display: inline-block; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ data.descripcion }}">{{ data.descripcion }}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 1.5em; font-weight: bold; color: #0f172a;">{{ data.cantidad_total }}</span>
+                            <span style="font-size: 0.9em; color: #94a3b8; margin-left: 2px;">u</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align: center; color: #94a3b8; padding: 20px;">No hay pedidos activos a sumar.</p>
+            {% endif %}
+        </div>
+        
+    </div>
+
+    <div id="banner-masivo" style="display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #8b5cf6; color: white; padding: 15px 30px; border-radius: 50px; font-weight: bold; box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4); z-index: 9999; align-items: center; gap: 15px; animation: slideUp 0.3s ease-out;">
+        <span id="txt-masivo" style="font-size: 16px;">0 seleccionados</span>
+        <button type="button" onclick="enviarRemitoMasivo()" style="background: white; color: #8b5cf6; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 900; cursor: pointer; transition: 0.2s;">
+            🚚 GENERAR REMITO ÚNICO
+        </button>
+    </div>
+
+    <div id="modal-buscador" class="modal-overlay" onclick="if(event.target === this) cerrarModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: #0f172a;">🔍 Catálogo Completo</h2>
+                <button type="button" class="btn-close" onclick="cerrarModal()">✖ Cerrar</button>
+            </div>
+            
+            <input type="text" id="input-modal-busqueda" placeholder="Escribí para filtrar toda la base de datos..." 
+                   style="padding: 15px; border: 2px solid #cbd5e1; border-radius: 8px; outline: none; font-weight: bold; font-size: 16px; margin-bottom: 15px; width: 100%; box-sizing: border-box;"
+                   oninput="buscarEnModal(this.value)">
+
+            <div class="modal-body">
+                <table class="table-modal">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">SKU</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-modal">
+                        <tr><td colspan="2" style="text-align:center; color:#64748b; padding:30px;">Escribí al menos 2 letras arriba para buscar...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalDespiece" class="modal-overlay" onclick="cerrarModalDespiece(event)">
+        <div class="modal-content" style="max-width: 800px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 style="margin: 0; color: #0f172a;">✂️ Lista de Corte y Materiales</h3>
+                <button type="button" class="btn-close" style="padding: 5px 10px;" onclick="document.getElementById('modalDespiece').style.display='none'">✖</button>
+            </div>
+            
+            <div id="contenido-despiece" style="margin-top: 15px; overflow-x: auto;">
+                <table class="table-modal" id="tablaDespiece" style="width: 100%; min-width: 600px;">
+                    <thead style="background: #f8fafc; text-transform: uppercase; font-size: 11px; color: #64748b;">
+                        <tr>
+                            <th style="padding: 12px; text-align: left;">Insumo / Material</th>
+                            <th style="padding: 12px; text-align: center;">Corte Recomendado</th>
+                            <th style="padding: 12px; text-align: center;">Fórmula Aplicada</th>
+                            <th style="padding: 12px; text-align: center;">Total a Consumir</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 🔥 CALENDARIO Y MODALES 🔥 ---
+        function abrirModalCalendario() { document.getElementById('modalCalendarioProd').style.display = 'flex'; }
+        function cerrarModalCalendario(e) { 
+            if (!e || e.target.id === 'modalCalendarioProd' || e.target.classList.contains('btn-close-modal') || e.target.classList.contains('btn-close')) {
+                document.getElementById('modalCalendarioProd').style.display = 'none'; 
+            }
+        }
+
+        // --- 🔥 LÓGICA DE BÚSQUEDA RÁPIDA DE TARJETAS 🔥 ---
+        function filtrarTarjetas() {
+            let input = document.getElementById('filtroPedidos').value.toUpperCase();
+            let tarjetas = document.querySelectorAll('.card-orden');
+
+            tarjetas.forEach(tarjeta => {
+                let textoTarjeta = tarjeta.innerText.toUpperCase();
+                if (textoTarjeta.includes(input)) {
+                    tarjeta.style.display = '';
+                } else {
+                    tarjeta.style.display = 'none';
+                }
+            });
+        }
+
+        // --- 🔥 FUNCIONES AJAX PARA EVITAR EL SALTO (EFECTO CANGURO) 🔥 ---
+        function sincronizarTableroInmediato() {
+            fetch(window.location.href)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Actualizamos las tarjetas
+                    const nuevaGrid = doc.querySelector('.grid-ordenes');
+                    const gridActual = document.querySelector('.grid-ordenes');
+                    if (nuevaGrid && gridActual) {
+                        gridActual.innerHTML = nuevaGrid.innerHTML;
+                        timersData = {}; 
+                        updateTimers(); 
+                    }
+
+                    // Actualizamos la columna derecha de totales
+                    const nuevosTotales = doc.querySelector('.column-totales');
+                    const totalesActuales = document.querySelector('.column-totales');
+                    if(nuevosTotales && totalesActuales) {
+                        totalesActuales.innerHTML = nuevosTotales.innerHTML;
+                    }
+                });
+        }
+
+        function iniciarSinRecargar(event, formulario, ordenId) {
+            event.preventDefault(); 
+            let btn = document.getElementById('btn-iniciar-' + ordenId);
+            btn.innerHTML = '⏳ Iniciando...';
+            btn.style.background = '#64748b'; 
+            btn.disabled = true;
+
+            fetch(formulario.action, { method: 'POST', body: new FormData(formulario) })
+            .then(res => {
+                if (res.ok) sincronizarTableroInmediato();
+                else { alert("Error al iniciar."); btn.disabled = false; }
+            });
+        }
+
+        function anularSinRecargar(event, formulario, ordenId) {
+            event.preventDefault(); 
+            
+            let motivo = prompt('⚠️ Estás por ANULAR esta orden de producción.\n\nIngresá el motivo de la anulación (Obligatorio):');
+            
+            if (motivo === null) return; 
+            
+            if (motivo.trim() === "") {
+                alert("❌ Operación cancelada. Es obligatorio escribir el motivo para poder anular el pedido.");
+                return;
+            }
+
+            let btn = document.getElementById('btn-anular-' + ordenId);
+            btn.innerHTML = '⏳ Anulando...';
+            btn.style.background = '#64748b'; 
+            btn.disabled = true;
+
+            let formData = new FormData(formulario);
+            formData.append("motivo_anulacion", motivo);
+
+            fetch(formulario.action, { method: 'POST', body: formData })
+            .then(res => {
+                if (res.ok) sincronizarTableroInmediato();
+                else { alert("Error al anular."); btn.disabled = false; }
+            });
+        }
+
+        // --- 🔥 CONFIGURACIÓN DE DESCANSOS 🔥 ---
+        const HORA_INI_DESAYUNO = "{{ config_alm.desayuno_inicio if config_alm and config_alm.desayuno_inicio else '09:00' }}";
+        const HORA_FIN_DESAYUNO = "{{ config_alm.desayuno_fin if config_alm and config_alm.desayuno_fin else '09:30' }}";
+        const HORA_INI_ALMUERZO = "{{ config_alm.almuerzo_inicio if config_alm else '12:00' }}";
+        const HORA_FIN_ALMUERZO = "{{ config_alm.almuerzo_fin if config_alm else '13:00' }}";
+        
+        // --- MOTOR DEL CRONÓMETRO ---
+        let timersData = {};
+
+        function calcularSolapamiento(startTime, nowTime, iniStr, finStr) {
+            if (!iniStr || !finStr) return 0;
+            let [iniH, iniM] = iniStr.split(':').map(Number);
+            let [finH, finM] = finStr.split(':').map(Number);
+            
+            let startDate = new Date(startTime);
+            let pausaIniDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), iniH, iniM, 0);
+            let pausaFinDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), finH, finM, 0);
+            
+            let startPausa = pausaIniDate.getTime();
+            let finPausa = pausaFinDate.getTime();
+            
+            if (startTime < finPausa && nowTime > startPausa) {
+                let overlapStart = Math.max(startTime, startPausa);
+                let overlapEnd = Math.min(nowTime, finPausa);
+                let overlapSeconds = Math.floor((overlapEnd - overlapStart) / 1000);
+                return overlapSeconds > 0 ? overlapSeconds : 0;
+            }
+            return 0;
+        }
+
+        function getSegundosNetos(startTime, nowTime) {
+            let totalSeconds = Math.floor((nowTime - startTime) / 1000);
+            if (totalSeconds < 0) totalSeconds = 0;
+            
+            let overlapDesayuno = calcularSolapamiento(startTime, nowTime, HORA_INI_DESAYUNO, HORA_FIN_DESAYUNO);
+            let overlapAlmuerzo = calcularSolapamiento(startTime, nowTime, HORA_INI_ALMUERZO, HORA_FIN_ALMUERZO);
+            
+            totalSeconds -= (overlapDesayuno + overlapAlmuerzo);
+            return Math.max(0, totalSeconds);
+        }
+
+        function initTimersData() {
+            document.querySelectorAll('.live-timer').forEach(el => {
+                let id = el.id;
+                if (!timersData[id]) {
+                    let startStr = el.getAttribute('data-start');
+                    if (!startStr) return;
+                    const now = new Date().getTime();
+                    let cleanStr = startStr.replace('T', ' ').split('.')[0].replace(/-/g, '/');
+                    let startTime = new Date(cleanStr).getTime();
+                    if (startTime > now) {
+                        startTime = startTime - (3 * 60 * 60 * 1000); 
+                    }
+                    timersData[id] = getSegundosNetos(startTime, now); 
+                }
+            });
+        }
+
+        // Verifica si estamos AHORA MISMO en alguna pausa
+        function checkPausa(ahora) {
+            let hm = (ahora.getHours() < 10 ? '0' : '') + ahora.getHours() + ':' + 
+                     (ahora.getMinutes() < 10 ? '0' : '') + ahora.getMinutes();
+            
+            if (hm >= HORA_INI_DESAYUNO && hm < HORA_FIN_DESAYUNO) return "DESAYUNO";
+            if (hm >= HORA_INI_ALMUERZO && hm < HORA_FIN_ALMUERZO) return "ALMUERZO";
+            return false;
+        }
+
+        function updateTimers() {
+            initTimersData();
+            let ahora = new Date();
+            let tipoPausa = checkPausa(ahora);
+
+            document.querySelectorAll('.live-timer').forEach(el => {
+                let id = el.id;
+                let boxId = id.replace('timer-text-', 'timer-box-');
+                let box = document.getElementById(boxId);
+
+                if (tipoPausa) {
+                    if(box) { 
+                        box.classList.add('timer-paused'); 
+                        el.innerText = "⏸️ EN " + tipoPausa; 
+                    }
+                } else {
+                    if(box) box.classList.remove('timer-paused');
+                    if(timersData[id] !== undefined) {
+                        timersData[id]++; 
+                        let diff = timersData[id];
+                        const h = Math.floor(diff / 3600);
+                        const m = Math.floor((diff % 3600) / 60);
+                        const s = diff % 60;
+                        el.innerText = (h > 0 ? (h < 10 ? "0" + h : h) + ":" : "") + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+                    }
+                }
+            });
+        }
+        setInterval(updateTimers, 1000);
+
+        // --- 🔥 FUNCIÓN FINALIZAR MEJORADA CON AJAX 🔥 ---
+        function preguntarCantidad(ordenId, sku, cantPlanificada) {
+            let cantReal = prompt(`Vas a finalizar la producción de ${sku}.\n\nCantidad planificada: ${cantPlanificada}\n\nSi fabricaste otra cantidad, modificala acá:`, cantPlanificada);
+            if (cantReal === null) return; 
+            cantReal = parseInt(cantReal);
+            if (isNaN(cantReal) || cantReal <= 0) { alert("❌ Ingresá un número válido."); return; }
+
+            let observacion = "";
+            if (cantReal < cantPlanificada) {
+                observacion = prompt(`⚠️ MOTIVO DE MERMA: ¿Por qué fabricaste ${cantReal} en lugar de ${cantPlanificada}?`);
+                if (observacion === null || observacion.trim() === "") {
+                    alert("❌ Operación cancelada. El motivo es obligatorio para cantidades menores.");
+                    return; 
+                }
+            }
+            
+            let form = document.getElementById(`form-finalizar-${ordenId}`);
+            let formData = new FormData(form);
+            formData.set("cantidad_real", cantReal);
+            if (observacion !== "") formData.append("observacion_merma", observacion);
+
+            let btn = form.querySelector('.btn-finalizar');
+            btn.innerHTML = '⏳ Finalizando...';
+            btn.style.background = '#64748b';
+            btn.disabled = true;
+
+            fetch(form.action, { method: 'POST', body: formData })
+            .then(res => {
+                if (res.ok) sincronizarTableroInmediato();
+                else { alert("Error al finalizar."); btn.disabled = false; }
+            });
+        }
+
+        let timeoutBuscador;
+        function buscarEtiquetasRapidas(query) {
+            clearTimeout(timeoutBuscador);
+            if (query.length < 2) return; 
+            timeoutBuscador = setTimeout(() => {
+                fetch(`/api/etiquetas_rapidas?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const datalist = document.getElementById('lista_etiquetas');
+                        datalist.innerHTML = ''; 
+                        data.forEach(prod => {
+                            const option = document.createElement('option');
+                            option.value = prod.sku;
+                            option.textContent = prod.descripcion;
+                            datalist.appendChild(option);
+                        });
+                    });
+            }, 300);
+        }
+
+        // --- MODAL Y CATÁLOGO ---
+        function abrirBuscadorAvanzado(queryInicial = '') {
+            document.getElementById('modal-buscador').style.display = 'flex';
+            let inputModal = document.getElementById('input-modal-busqueda');
+            inputModal.value = queryInicial; inputModal.focus();
+            if (queryInicial.length >= 2) buscarEnModal(queryInicial);
+        }
+        function cerrarModal() { document.getElementById('modal-buscador').style.display = 'none'; }
+
+        function buscarEnModal(query) {
+            const tbody = document.getElementById('tbody-modal');
+            if (query.length < 2) return;
+            fetch(`/api/buscar_todo_produccion?q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(data => {
+                    tbody.innerHTML = '';
+                    data.forEach(prod => {
+                        const tr = document.createElement('tr');
+                        tr.onclick = () => {
+                            document.getElementById('sku_etiqueta_manual').value = prod.sku;
+                            cerrarModal();
+                        };
+                        tr.innerHTML = `<td style="font-weight:900;">${prod.sku}</td><td>${prod.descripcion}</td>`;
+                        tbody.appendChild(tr);
+                    });
+                });
+        }
+
+        // --- IMPRESIÓN ---
+        function imprimirEtiqueta(ordenId, cantPlanificada) {
+            let cantReal = prompt(`Copias a imprimir:`, cantPlanificada);
+            if (cantReal === null) return; 
+            fetch(`/api/datos_etiqueta/${ordenId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        data.cantidad = parseInt(cantReal);
+                        fetch('http://localhost:9100/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                    }
+                });
+        }
+
+        function imprimirEtiquetaManual() {
+            const sku = document.getElementById('sku_etiqueta_manual').value;
+            const copias = document.getElementById('copias_etiqueta_manual').value;
+            fetch(`/api/datos_etiqueta_manual/${encodeURIComponent(sku)}`)
+                .then(res => res.json())
+                .then(data => {
+                    data.cantidad = parseInt(copias);
+                    fetch('http://localhost:9100/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                });
+        }
+
+        // 🔥 FUNCIÓN PARA MANDAR EL REMITO MASIVO VIA JS 🔥
+        function enviarRemitoMasivo() {
+            const checkboxes = document.querySelectorAll('.chk-remito:checked');
+            if (checkboxes.length === 0) return;
+
+            // Creamos un formulario virtual
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "{{ url_for('enviar_logistica_masiva') }}";
+            form.target = "_blank"; // Abre en pestaña nueva
+
+            checkboxes.forEach(chk => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'ordenes_seleccionadas';
+                input.value = chk.value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+
+            // Recargamos la pantalla después de un ratito para limpiar
+            setTimeout(() => window.location.reload(), 1500);
+        }
+
+        // 🔥 FUNCIÓN PARA CONTROLAR EL BANNER FLOTANTE DEL REMITO 🔥
+        function actualizarBannerMasivo() {
+            const seleccionados = document.querySelectorAll('.chk-remito:checked').length;
+            const banner = document.getElementById('banner-masivo');
+            const texto = document.getElementById('txt-masivo');
+            
+            if (seleccionados > 0) {
+                texto.innerText = `${seleccionados} producto(s) para el Remito`;
+                banner.style.display = 'flex';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        // --- SINCRONIZACIÓN MODIFICADA PARA NO BORRAR LA BÚSQUEDA NI CERRAR MODALES ---
+        function sincronizarTablero() {
+            let textoBuscador = document.getElementById('filtroPedidos').value;
+            
+            let modalBuscadorOpen = document.getElementById('modal-buscador').style.display === 'flex';
+            let modalConfigOpen = document.getElementById('modalConfig').style.display === 'flex';
+            let modalCalendarioOpen = document.getElementById('modalCalendarioProd') && document.getElementById('modalCalendarioProd').style.display === 'flex';
+            let modalDespieceOpen = document.getElementById('modalDespiece') && document.getElementById('modalDespiece').style.display === 'flex';
+            
+            // 🔥 ESCUDO: Si hay cuadraditos tildados, no recargues la pantalla o se van a destildar solos
+            let hayCheckboxesMarcados = document.querySelectorAll('.chk-remito:checked').length > 0;
+            
+            if(modalBuscadorOpen || modalConfigOpen || modalCalendarioOpen || modalDespieceOpen || textoBuscador.length > 0 || document.activeElement.tagName === 'INPUT' || hayCheckboxesMarcados) return; 
+
+            // Reutilizamos la función inmediata que ya hace el trabajo
+            sincronizarTableroInmediato();
+        }
+        setInterval(sincronizarTablero, 2000);
+
+
+        // ==========================================
+        // 🔥 LÓGICA DEL DESPIECE 🔥
+        // ==========================================
+        
+        function cerrarModalDespiece(e) {
+            if (!e || e.target.id === 'modalDespiece') {
+                document.getElementById('modalDespiece').style.display = 'none';
+            }
+        }
+
+        function verDespiece(ordenId) {
+            document.getElementById('modalDespiece').style.display = 'flex';
+            const tbody = document.querySelector('#tablaDespiece tbody'); 
+            
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px; font-weight: bold; color: #64748b;">⏳ Calculando matemáticas del despiece...</td></tr>';
+
+            fetch('/api/despiece/' + ordenId)
+                .then(response => response.json())
+                .then(data => {
+                    tbody.innerHTML = ''; 
+
+                    if (data.status === 'error') {
+                        tbody.innerHTML = `<tr><td colspan="4" style="color: red; text-align: center; padding: 20px; font-weight: bold;">❌ ${data.message}</td></tr>`;
+                        return;
+                    }
+
+                    data.despiece.forEach(item => {
+                        if (item.sku === 'AVISO') {
+                            tbody.innerHTML += `<tr><td colspan="4" style="color: #b91c1c; text-align: center; padding: 15px; font-weight: bold; background: #fee2e2;">⚠️ ${item.material}</td></tr>`;
+                            return;
+                        }
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td style="padding: 12px;">
+                                    <strong style="color: #0f172a; font-size: 14px;">${item.sku}</strong><br>
+                                    <span style="color: #64748b; font-size: 12px;">${item.material}</span>
+                                </td>
+                                <td style="text-align: center; font-weight: bold; color: #475569; padding: 12px;">
+                                    ${item.corte}
+                                </td>
+                                <td style="text-align: center; padding: 12px;">
+                                    <span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; font-weight: bold;">
+                                        ${item.formula}
+                                    </span>
+                                </td>
+                                <td style="text-align: center; font-weight: 900; color: #16a34a; font-size: 18px; padding: 12px;">
+                                    ${item.consumo}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                })
+                .catch(error => {
+                    tbody.innerHTML = `<tr><td colspan="4" style="color: red; text-align: center; padding: 20px;">❌ Error de conexión. Revisá que el servidor esté encendido.</td></tr>`;
+                    console.error('Error:', error);
+                });
+        }
+    </script>
+</body>
+</html>

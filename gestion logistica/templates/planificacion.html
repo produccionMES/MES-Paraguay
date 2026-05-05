@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planificación Inteligente MRP</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #334155; padding-bottom: 100px; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-nav { background: #8b5cf6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.2s; border: none; cursor: pointer; }
+        .btn-nav:hover { background: #7c3aed; }
+        
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
+        
+        .header-info { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f1f5f9; flex-wrap: wrap; gap: 15px;}
+        
+        .selector-cobertura { padding: 5px 12px; font-size: 16px; border-radius: 8px; border: 2px solid #8b5cf6; background: #f3e8ff; color: #6d28d9; font-weight: 900; outline: none; cursor: pointer; transition: 0.2s; margin-left: 10px;}
+        .selector-cobertura:hover { background: #e9d5ff; }
+        
+        .header-info h3 { margin: 0 0 5px 0; color: #0f172a; font-size: 22px; display: flex; align-items: center; flex-wrap: wrap;}
+        .header-info p { margin: 0; color: #64748b; font-size: 14px; }
+        
+        .btn-gantt { background: #0f172a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 14px;}
+        .btn-gantt:hover { background: #334155; }
+        
+        .btn-armar { background: #10b981; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 14px;}
+        .btn-armar:hover { background: #059669; }
+
+        .btn-cronograma { background: #2563eb; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 14px;}
+        .btn-cronograma:hover { background: #1d4ed8; }
+
+        .buscador-wrapper { position: relative; width: 350px; }
+        .buscador-wrapper input { width: 100%; padding: 12px 15px; border-radius: 8px; border: 2px solid #cbd5e1; outline: none; font-size: 14px; font-weight: bold; color: #334155; box-sizing: border-box; transition: 0.2s;}
+        .buscador-wrapper input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2); }
+
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        
+        th { background: #f8fafc; padding: 15px; text-align: center; font-size: 11px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 10;}
+        th.sortable { cursor: pointer; transition: background 0.2s, color 0.2s; user-select: none; }
+        th.sortable:hover { background: #e2e8f0; color: #0f172a; }
+        th.sortable span.sort-icon { display: inline-block; margin-left: 5px; font-size: 12px; color: #94a3b8; }
+        
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; text-align: center; vertical-align: middle; }
+        
+        .sku-cell { text-align: left; font-weight: bold; color: #1e293b; font-size: 15px; }
+        .sku-desc { font-size: 11px; color: #94a3b8; font-weight: normal; margin-top: 3px; }
+        
+        .badge-estado { padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 900; color: white; display: inline-block; min-width: 80px;}
+        
+        .math-box { background: #f1f5f9; padding: 5px 10px; border-radius: 6px; font-weight: bold; display: inline-block;}
+        .math-box.ventas { color: #0284c7; background: #e0f2fe; }
+        .math-box.stock { color: #16a34a; background: #dcfce7; }
+        .math-box.wip { color: #d97706; background: #fef3c7; }
+
+        input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #8b5cf6;}
+        
+        .action-bar {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            background: white; padding: 15px 30px; border-radius: 50px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); border: 2px solid #8b5cf6;
+            display: flex; align-items: center; gap: 20px; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000; width: max-content;
+        }
+        .action-bar.show { bottom: 30px; }
+        .action-text { font-size: 16px; font-weight: bold; color: #1e293b; }
+        
+        .btn-planta { padding: 12px 20px; border-radius: 25px; border: none; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px;}
+        .btn-local { background: #ea580c; color: white; }
+        .btn-local:hover { background: #c2410c; transform: scale(1.05); }
+        .btn-externa { background: #16a34a; color: white; }
+        .btn-externa:hover { background: #15803d; transform: scale(1.05); }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.75); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-content { background: white; padding: 30px; border-radius: 16px; width: 90%; max-width: 1000px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); position: relative; }
+        .btn-close-modal { position: absolute; top: 15px; right: 20px; font-size: 24px; font-weight: bold; cursor: pointer; color: #94a3b8; background: none; border: none; transition: 0.2s; }
+        .btn-close-modal:hover { color: #dc2626; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 5px; flex-grow: 1;}
+        .input-group label { font-size: 13px; font-weight: bold; color: #64748b; display: flex; justify-content: space-between; align-items: center;}
+        .input-group input, .input-group select { padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; outline: none; font-weight: bold; color: #334155; width: 100%; box-sizing: border-box;}
+        .link-avanzado { color: #8b5cf6; font-size: 11px; cursor: pointer; background: #ede9fe; padding: 3px 8px; border-radius: 4px; transition: 0.2s; }
+        .link-avanzado:hover { background: #ddd6fe; color: #6d28d9; }
+        .table-modal { width: 100%; border-collapse: collapse; }
+        .table-modal th, .table-modal td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .table-modal tr { cursor: pointer; transition: 0.2s; }
+        .table-modal tr:hover { background-color: #f8fafc; }
+
+        /* 🔥 ESTILOS PARA EL CALENDARIO TIPO EXCEL 🔥 */
+        .calendario-table th { background: #f8fafc; color: #475569; padding: 12px; font-size: 12px; border: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 5; text-transform: uppercase;}
+        .calendario-table td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+        .col-fija { position: sticky; left: 0; background: white; z-index: 4; border-right: 2px solid #cbd5e1 !important; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+        .celda-cantidad { background: #22c55e; color: white; font-weight: 900; font-size: 14px; padding: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(34,197,94,0.3); display: inline-block; min-width: 25px;}
+        .celda-vacia { color: #cbd5e1; font-weight: bold; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div id="modalCalendarioProd" class="modal-overlay" onclick="cerrarModalCalendario(event)">
+        <div class="modal-content" style="max-width: 1300px; padding: 20px;" onclick="event.stopPropagation()">
+            <button class="btn-close-modal" onclick="cerrarModalCalendario()">✖</button>
+            <h3 style="margin: 0 0 5px 0; color: #0f172a; font-size: 20px; display: flex; align-items: center; gap: 8px;">
+                🗓️ Cronograma de Producción
+            </h3>
+            <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 20px;">
+                Visualización rápida de los pedidos programados en fábrica para los próximos 15 días.
+            </p>
+            
+            <div style="overflow: auto; max-height: 60vh; border-radius: 8px; border: 1px solid #cbd5e1;">
+                <table class="calendario-table" style="width: 100%; border-collapse: collapse; min-width: 1000px;">
+                    <thead>
+                        <tr>
+                            <th class="col-fija" style="width: 250px; text-align: left; z-index: 6;">SKU / Producto</th>
+                            {% for dia in dias_headers %}
+                                <th>{{ dia }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fila in datos_calendario %}
+                        <tr style="transition: 0.2s;">
+                            <td class="col-fija" style="text-align: left;">
+                                <div style="font-weight: 900; color: #1e293b; font-size: 14px;">{{ fila.sku }}</div>
+                                <div style="font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px;">
+                                    {{ fila.descripcion }}
+                                </div>
+                            </td>
+                            {% for cant in fila.cantidades %}
+                                <td>
+                                    {% if cant > 0 %}
+                                        <span class="celda-cantidad">{{ cant }}</span>
+                                    {% else %}
+                                        <span class="celda-vacia">-</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="{{ dias_headers|length + 1 }}" style="padding: 40px; text-align: center; color: #64748b;">
+                                📭 No hay producción programada para los próximos 15 días en la base de datos.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalPlanManual" class="modal-overlay" onclick="cerrarModalManual(event)">
+        <div class="modal-content" style="max-width: 500px;" onclick="event.stopPropagation()">
+            <button class="btn-close-modal" onclick="cerrarModalManual()">✖</button>
+            <h3 style="margin: 0 0 5px 0; color: #0f172a; font-size: 20px;">📝 Armar Planificación</h3>
+            <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Cargá una orden de producción específica directo a la fábrica.</p>
+            
+            <form action="{{ url_for('crear_produccion_planificada') }}" method="POST" style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="input-group">
+                    <label>
+                        Producto (SKU) 
+                        <span class="link-avanzado" onclick="abrirBuscadorAvanzado()">🔍 Ver Catálogo</span>
+                    </label>
+                    <input list="lista_skus_manual" id="input_sku_manual" name="sku" required placeholder="Escribí y presioná ENTER..." style="text-transform: uppercase;" autocomplete="off" oninput="buscarSkuManual(this.value)" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); abrirBuscadorAvanzado(this.value); }">
+                    <datalist id="lista_skus_manual"></datalist>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="input-group">
+                        <label>Cantidad</label>
+                        <input type="number" name="cantidad" required min="1" value="1">
+                    </div>
+                    <div class="input-group">
+                        <label>Para el día:</label>
+                        <input type="date" name="fecha_planificada" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
+                    <div class="input-group">
+                        <label>Referencia / Motivo</label>
+                        <input type="text" name="referencia" placeholder="Ej: Especial, Reposición..." required>
+                    </div>
+                    <div class="input-group">
+                        <label>Prioridad</label>
+                        <select name="prioridad">
+                            <option value="Baja">Baja</option>
+                            <option value="Normal" selected>Normal</option>
+                            <option value="Urgente">🚨 Urgente</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button type="submit" style="background: #10b981; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; font-size: 15px;">
+                    🏭 Enviar a Fábrica
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-buscador" class="modal-overlay" onclick="if(event.target === this) cerrarBuscadorAvanzado()">
+        <div class="modal-content" style="max-height: 80vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0; color: #0f172a;">🔍 Catálogo Completo</h2>
+                <button type="button" style="background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="cerrarBuscadorAvanzado()">✖ Cerrar</button>
+            </div>
+            
+            <input type="text" id="input-modal-busqueda" placeholder="Escribí para filtrar toda la base de datos..." 
+                   style="padding: 15px; border: 2px solid #cbd5e1; border-radius: 8px; outline: none; font-weight: bold; font-size: 16px; margin-bottom: 15px; width: 100%; box-sizing: border-box;"
+                   oninput="buscarEnModal(this.value)">
+
+            <div style="overflow-y: auto; flex-grow: 1;">
+                <table class="table-modal">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">SKU</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-modal">
+                        <tr><td colspan="2" style="text-align:center; color:#64748b; padding:30px;">Escribí al menos 2 letras arriba para buscar...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalGantt" class="modal-overlay" onclick="cerrarModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button class="btn-close-modal" onclick="cerrarModal()">✖</button>
+            <h3 style="margin: 0 0 5px 0; color: #0f172a; font-size: 20px; display: flex; align-items: center; gap: 8px;">
+                📊 Diagrama de Quiebre de Stock (Top 15 Críticos)
+            </h3>
+            <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Muestra los días restantes hasta que el inventario llegue a cero de todo tu catálogo.</p>
+            <div style="height: 500px; width: 100%;">
+                <canvas id="ganttChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">🧠 MRP: Planificación de Producción</h2>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <a href="{{ url_for('ventas') }}" class="btn-nav" style="background: #3b82f6;">📊 Tablero Ventas</a>
+            <a href="{{ url_for('produccion') }}" class="btn-nav" style="background: #ea580c;">🏭 Ver Fábrica</a>
+            <a href="{{ url_for('home') }}" class="btn-nav" style="background: #334155;">🏠 Inicio</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="background-color: {% if category == 'error' %}#f8d7da{% else %}#d1e7dd{% endif %}; 
+                      color: {% if category == 'error' %}#842029{% else %}#0f5132{% endif %}; 
+                      padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; text-align: center;">
+              {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="header-info">
+            <div>
+                <h3>
+                    Requerimiento Neto para
+                    <form id="formCobertura" method="GET" action="{{ url_for('planificacion') }}" style="margin: 0; display: inline-block;">
+                        <input type="hidden" name="q" value="{{ q }}">
+                        <select name="cobertura_dias" id="selectorCobertura" class="selector-cobertura">
+                            <option value="7" {% if cobertura_dias == 7 %}selected{% endif %}>1 Semana (7 Días)</option>
+                            <option value="15" {% if cobertura_dias == 15 %}selected{% endif %}>1 Quincena (15 Días)</option>
+                            <option value="30" {% if cobertura_dias == 30 %}selected{% endif %}>1 Mes (30 Días)</option>
+                            <option value="45" {% if cobertura_dias == 45 %}selected{% endif %}>1.5 Meses (45 Días)</option>
+                            <option value="60" {% if cobertura_dias == 60 %}selected{% endif %}>2 Meses (60 Días)</option>
+                            <option value="90" {% if cobertura_dias == 90 %}selected{% endif %}>3 Meses (90 Días)</option>
+                        </select>
+                    </form>
+                </h3>
+                <p>Mostrando los {% if not q %}100 productos más críticos{% else %}resultados de la búsqueda{% endif %}.</p>
+                
+                {% if es_solo_lectura %}
+                    <span style="background: #fee2e2; color: #b91c1c; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-top: 10px; display: inline-block; border: 1px solid #ef4444;">
+                        👁️ MODO SOLO LECTURA
+                    </span>
+                {% endif %}
+            </div>
+            
+            <div class="acciones-top" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                
+                {% if not es_solo_lectura %}
+                <button type="button" class="btn-armar" onclick="abrirModalManual()">📝 Armar Planificación</button>
+                {% endif %}
+                <button type="button" onclick="exportarPlanificacionExcel()" style="background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    📥 Descargar Excel
+                </button>
+                <button type="button" class="btn-cronograma" onclick="abrirModalCalendario()">🗓️ Ver Cronograma</button>
+                <button type="button" class="btn-gantt" onclick="abrirModal()">📊 Diagrama</button>
+                
+                <div class="buscador-wrapper">
+                    <input type="text" id="buscadorPlan" placeholder="🔍 Escribí para buscar en vivo..." autocomplete="off">
+                </div>
+            </div>
+        </div>
+
+        {% if pedidos_ventas %}
+        <div style="background: #fffbeb; border: 2px solid #fcd34d; border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <h3 style="margin: 0 0 15px 0; color: #b45309; display: flex; align-items: center; gap: 8px;">
+                📥 ¡Tenés {{ pedidos_ventas|length }} Pedidos de Ventas Pendientes!
+            </h3>
+            <div class="table-responsive">
+                <table style="background: white; width: 100%; border-collapse: collapse;">
+                    <thead style="background: #fef3c7;">
+                        <tr>
+                            <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Cliente</th>
+                            <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Tipo</th>
+                            <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Detalle / SKU</th>
+                            <th style="padding: 12px; text-align: center; color: #b45309; border-bottom: 2px solid #fde68a;">Cant.</th>
+                            <th style="padding: 12px; text-align: center; color: #b45309; border-bottom: 2px solid #fde68a;">Fecha Fab. / Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pedido in pedidos_ventas %}
+                        <tr>
+                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-weight: bold; color: #1e293b;">
+                                {{ pedido.cliente }}
+                                <div style="font-size: 11px; color: #94a3b8; font-weight: normal; margin-top: 3px;">Vendedor: {{ pedido.vendedor }}</div>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7;">
+                                {% if pedido.es_a_medida %}
+                                    <span style="background: #ede9fe; color: #6d28d9; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">✂️ A MEDIDA</span>
+                                {% else %}
+                                    <span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">📦 ESTÁNDAR</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-size: 13px; color: #475569;">
+                                {{ pedido.sku if not pedido.es_a_medida else pedido.descripcion }}
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-size: 18px; font-weight: 900; color: #dc2626; text-align: center;">
+                                {{ pedido.cantidad }}
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; text-align: center;">
+                                {% if not es_solo_lectura %}
+                                <form action="{{ url_for('planificar_pedido_cliente', pedido_id=pedido.id) }}" method="POST" style="margin: 0; display: flex; gap: 8px; justify-content: center; align-items: center;">
+                                    <input type="date" name="fecha_planificada" required style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: bold; color: #334155; outline: none;">
+                                    
+                                    <select name="prioridad" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: bold; color: #334155; outline: none;">
+                                        <option value="Baja">Baja</option>
+                                        <option value="Normal" selected>Normal</option>
+                                        <option value="Urgente">🚨 Urg.</option>
+                                    </select>
+                                    
+                                    <button type="submit" style="background: #10b981; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; white-space: nowrap;">
+                                        ⚙️ Planificar
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span style="color: #94a3b8; font-size: 12px; font-weight: bold;">Bloqueado</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <form id="formMasivo" action="{{ url_for('procesar_planificacion_masiva') }}" method="POST">
+            <input type="hidden" id="destino_oculto" name="destino_produccion" value="">
+            
+            <div class="table-responsive">
+                <table id="tablaPlanificacion">
+                    <thead>
+                        <tr>
+                            {% if not es_solo_lectura %}
+                            <th><input type="checkbox" id="chkTodos" onchange="seleccionarTodos(this.checked)"></th>
+                            {% endif %}
+                            
+                            <th style="text-align: left;" class="sortable" onclick="ordenarTabla(1)">Producto <span class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="ordenarTabla(2)">🗓️ Se Agota <span class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="ordenarTabla(3)">📈 Prom. (Mes) <span class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="ordenarTabla(4)">📦 En Depósito <span class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="ordenarTabla(5)">🏭 En Fábrica <span class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="ordenarTabla(6)">Estado <span class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="ordenarTabla(7)">🎯 A Fabricar <span class="sort-icon">⇅</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPlanificacion">
+                    </tbody>
+                </table>
+            </div>
+
+            {% if not es_solo_lectura %}
+            <div id="actionBar" class="action-bar">
+                <span class="action-text">🛒 <span id="contadorSeleccion">0</span> listos</span>
+                
+                <div style="display: flex; align-items: center; gap: 5px; background: #f1f5f9; padding: 5px 12px; border-radius: 8px; border: 1px solid #cbd5e1;">
+                    <span style="font-size: 13px; font-weight: bold; color: #475569;">🗓️ Fabricar el:</span>
+                    <input type="date" name="fecha_planificada_masiva" style="border: none; outline: none; background: transparent; font-weight: bold; color: #0f172a; font-size: 14px; cursor: pointer;">
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn-planta btn-local" onclick="enviarFormulario('local')">🏭 Enviar a Local</button>
+                    <button type="button" class="btn-planta btn-externa" onclick="enviarFormulario('externa')">✈️ Exportar Externa</button>
+                </div>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <script>
+        // 🔥 PASAMOS LA VARIABLE A JAVASCRIPT 🔥
+        const esSoloLectura = {{ 'true' if es_solo_lectura else 'false' }};
+
+        document.addEventListener("DOMContentLoaded", function() {
+            let inputsFecha = document.querySelectorAll('input[type="date"]');
+            let hoy = new Date().toISOString().split('T')[0];
+            inputsFecha.forEach(input => {
+                if(!input.value) input.value = hoy;
+            });
+            
+            const ctxGantt = document.getElementById('ganttChart').getContext('2d');
+            const dataGantt = {{ grafico_gantt | tojson | safe }};
+            new Chart(ctxGantt, {
+                type: 'bar',
+                data: {
+                    labels: dataGantt.labels,
+                    datasets: [{ label: 'Días de Stock', data: dataGantt.datos, backgroundColor: dataGantt.colores, borderRadius: 4, barPercentage: 0.7 }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        y: { grid: { display: false }, ticks: { font: { weight: 'bold', size: 11 }, color: '#334155' } }
+                    }
+                }
+            });
+        });
+
+        function abrirModal() { document.getElementById('modalGantt').style.display = 'flex'; }
+        function cerrarModal(e) { if (!e || e.target.id === 'modalGantt') document.getElementById('modalGantt').style.display = 'none'; }
+        function abrirModalManual() { document.getElementById('modalPlanManual').style.display = 'flex'; }
+        function cerrarModalManual(e) { if (!e || e.target.id === 'modalPlanManual') document.getElementById('modalPlanManual').style.display = 'none'; }
+        function abrirModalCalendario() { document.getElementById('modalCalendarioProd').style.display = 'flex'; }
+        function cerrarModalCalendario(e) { if (!e || e.target.id === 'modalCalendarioProd') document.getElementById('modalCalendarioProd').style.display = 'none'; }
+        function abrirBuscadorAvanzado(queryInicial = '') {
+            document.getElementById('modal-buscador').style.display = 'flex';
+            let inputModal = document.getElementById('input-modal-busqueda');
+            inputModal.value = queryInicial; inputModal.focus();
+            if (queryInicial.length >= 2) buscarEnModal(queryInicial);
+        }
+        function cerrarBuscadorAvanzado() { document.getElementById('modal-buscador').style.display = 'none'; }
+
+        let timeoutPlanificacion;
+        function buscarSkuManual(query) {
+            clearTimeout(timeoutPlanificacion);
+            if (query.length < 2) return; 
+            timeoutPlanificacion = setTimeout(() => {
+                fetch(`/api/etiquetas_rapidas?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const datalist = document.getElementById('lista_skus_manual');
+                        datalist.innerHTML = ''; 
+                        data.forEach(prod => {
+                            const option = document.createElement('option');
+                            option.value = prod.sku;
+                            option.textContent = prod.descripcion;
+                            datalist.appendChild(option);
+                        });
+                    });
+            }, 300);
+        }
+
+        function buscarEnModal(query) {
+            const tbody = document.getElementById('tbody-modal');
+            if (query.length < 2) return;
+            fetch(`/api/buscar_todo_produccion?q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(data => {
+                    tbody.innerHTML = '';
+                    data.forEach(prod => {
+                        const tr = document.createElement('tr');
+                        tr.onclick = () => {
+                            document.getElementById('input_sku_manual').value = prod.sku;
+                            cerrarBuscadorAvanzado();
+                        };
+                        tr.innerHTML = `<td style="font-weight:900;">${prod.sku}</td><td>${prod.descripcion}</td>`;
+                        tbody.appendChild(tr);
+                    });
+                });
+        }
+
+
+        let memoriaDatos = {{ planificacion | tojson | safe }};
+        memoriaDatos = memoriaDatos.map(item => ({...item, checked: false}));
+        let sortCol = null;
+        let sortAsc = true;
+
+        function renderTabla() {
+            let html = "";
+            for(let i = 0; i < memoriaDatos.length; i++) {
+                let item = memoriaDatos[i];
+                
+                // 🔥 SI ES LECTURA, QUITAMOS EL CHECKBOX Y CONVERTIMOS EL CUADRADITO EN TEXTO 🔥
+                let checkTd = esSoloLectura ? "" : `<td><input type="checkbox" class="chk-item" onchange="updateChk('${item.sku}', this.checked)" ${item.checked ? 'checked' : ''}></td>`;
+                
+                let inputTd = esSoloLectura 
+                    ? `<td><span style="font-weight: bold; font-size: 16px; color: ${item.color_input};">${item.val_input || '-'}</span></td>`
+                    : `<td><input type="number" value="${item.val_input}" oninput="updateCant('${item.sku}', this.value)" placeholder="0" min="1" class="input-cantidad" style="width: 80px; text-align: center; border-radius: 6px; border: 2px solid #cbd5e1; font-weight: bold; font-size: 16px; padding: 5px; color: ${item.color_input};"></td>`;
+
+                html += `
+                <tr class="fila-plan" style="background: ${item.bg_row};">
+                    ${checkTd}
+                    <td class="sku-cell">${item.sku}<div class="sku-desc">${item.descripcion}</div></td>
+                    <td><span style="font-size: 13px; font-weight: 800; color: ${item.color_fecha};">${item.fecha_quiebre}</span><br><span style="font-size: 11px; font-weight: bold; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: ${item.color_fecha}; display: inline-block; margin-top: 4px;">${item.dias_texto}</span></td>
+                    <td><span class="math-box ventas">${item.promedio_mensual}</span></td>
+                    <td><span class="math-box stock">${item.stock_actual}</span></td>
+                    <td><span class="math-box wip">${item.en_fabrica}</span></td>
+                    <td><span class="badge-estado" style="background-color: ${item.color};">${item.estado}</span></td>
+                    ${inputTd}
+                </tr>`;
+            }
+            if(memoriaDatos.length === 0) html = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #64748b;">No se encontraron productos con esos filtros.</td></tr>';
+            document.getElementById('tbodyPlanificacion').innerHTML = html;
+            if(!esSoloLectura) actualizarBarraFlotante();
+        }
+
+        document.addEventListener("DOMContentLoaded", () => { renderTabla(); });
+
+        let timerBusqueda;
+        const buscador = document.getElementById("buscadorPlan");
+        const selectorCobertura = document.getElementById("selectorCobertura");
+        const tbody = document.getElementById("tbodyPlanificacion");
+
+        buscador.addEventListener("input", function() {
+            clearTimeout(timerBusqueda);
+            timerBusqueda = setTimeout(() => { realizarBusquedaVivo(); }, 300);
+        });
+
+        selectorCobertura.addEventListener("change", function() {
+            realizarBusquedaVivo();
+        });
+
+        async function realizarBusquedaVivo() {
+            const q = buscador.value;
+            const cob = selectorCobertura.value;
+            tbody.style.opacity = '0.4';
+            try {
+                const res = await fetch(`/api/busqueda_planificacion_vivo?q=${q}&cobertura_dias=${cob}`);
+                const data = await res.json();
+                memoriaDatos = data.datos.map(item => ({...item, checked: false}));
+                aplicarOrden();
+                renderTabla();
+                if(!esSoloLectura) document.getElementById('chkTodos').checked = false;
+            } catch (e) { console.error(e); } finally { tbody.style.opacity = '1'; }
+        }
+
+        function ordenarTabla(colIndex) {
+            if (sortCol === colIndex) sortAsc = !sortAsc;
+            else { sortCol = colIndex; sortAsc = true; }
+            actualizarIconosOrden(colIndex, sortAsc);
+            aplicarOrden();
+            renderTabla();
+        }
+
+        function aplicarOrden() {
+            if (sortCol === null) return;
+            memoriaDatos.sort((a, b) => {
+                let valA, valB;
+                if (sortCol === 1) { valA = a.sku; valB = b.sku; }
+                else if (sortCol === 2) { valA = a.dias_num; valB = b.dias_num; }
+                else if (sortCol === 3) { valA = a.promedio_mensual; valB = b.promedio_mensual; }
+                else if (sortCol === 4) { valA = a.stock_actual; valB = b.stock_actual; }
+                else if (sortCol === 5) { valA = a.en_fabrica; valB = b.en_fabrica; }
+                else if (sortCol === 6) { valA = a.estado; valB = b.estado; }
+                else if (sortCol === 7) { valA = parseInt(a.val_input) || 0; valB = parseInt(b.val_input) || 0; }
+                if (valA < valB) return sortAsc ? -1 : 1;
+                if (valA > valB) return sortAsc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function actualizarIconosOrden(columnaActiva, isAsc) {
+            document.querySelectorAll('th.sortable .sort-icon').forEach(icon => { icon.innerHTML = '⇅'; icon.style.color = '#94a3b8'; });
+            let iconoActivo = document.querySelectorAll('th.sortable')[columnaActiva - 1].querySelector('.sort-icon');
+            if(iconoActivo) {
+                iconoActivo.innerHTML = isAsc ? '↑' : '↓';
+                iconoActivo.style.color = '#0f172a';
+            }
+        }
+
+        function updateChk(sku, isChecked) {
+            let item = memoriaDatos.find(i => i.sku === sku);
+            if(item) item.checked = isChecked;
+            actualizarBarraFlotante();
+        }
+
+        function updateCant(sku, val) {
+            let item = memoriaDatos.find(i => i.sku === sku);
+            if(item) item.val_input = val;
+        }
+
+        function seleccionarTodos(isChecked) {
+            memoriaDatos.forEach(item => item.checked = isChecked);
+            renderTabla();
+        }
+
+        function actualizarBarraFlotante() {
+            if(esSoloLectura) return;
+            let seleccionados = memoriaDatos.filter(i => i.checked).length;
+            document.getElementById('contadorSeleccion').innerText = seleccionados;
+            let ab = document.getElementById('actionBar');
+            if (seleccionados > 0) ab.classList.add('show'); else ab.classList.remove('show');
+        }
+
+        function exportarPlanificacionExcel() {
+            // Lee lo que está escrito en el buscador y el selector de días
+            const q = document.getElementById("buscadorPlan").value;
+            const cob = document.getElementById("selectorCobertura").value;
+    
+            // Le manda esos datos a Python para que baje el Excel exacto
+            window.location.href = `/exportar_planificacion?q=${encodeURIComponent(q)}&cobertura_dias=${cob}`;
+        }
+
+        function enviarFormulario(destino) {
+            if(destino === 'local' && !confirm('¿Enviar órdenes a planta local?')) return;
+            let form = document.getElementById('formMasivo');
+            document.getElementById('destino_oculto').value = destino;
+            document.querySelectorAll('.dynamic-input').forEach(el => el.remove());
+            memoriaDatos.filter(i => i.checked).forEach(item => {
+                let inputSku = document.createElement('input'); inputSku.type = 'hidden'; inputSku.name = 'skus_seleccionados'; inputSku.value = item.sku; inputSku.className = 'dynamic-input'; form.appendChild(inputSku);
+                let inputCant = document.createElement('input'); inputCant.type = 'hidden'; inputCant.name = 'cant_' + item.sku; inputCant.value = item.val_input || 0; inputCant.className = 'dynamic-input'; form.appendChild(inputCant);
+            });
+            form.submit();
+        }
+    </script>
+</body>
+</html>

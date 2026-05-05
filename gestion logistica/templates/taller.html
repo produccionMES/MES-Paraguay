@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bandeja de Entrada - Taller</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        .contenedor { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #6f42c1; padding-bottom: 15px; margin-bottom: 25px; }
+        .titulo { margin: 0; color: #4b2c82; }
+        .btn-volver { text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; color: white; transition: 0.3s; background: #6f42c1; }
+        
+        .flash-msg { padding: 15px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 20px; }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #f8f9fa; color: #495057; text-transform: uppercase; font-size: 11px; }
+        
+        .btn-accion { padding: 8px 15px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; color: white; text-decoration: none; display: inline-block; text-align: center; min-width: 100px; }
+        .btn-iniciar { background-color: #0d6efd; }
+        .btn-reanudar { background-color: #ffc107; color: #000; }
+        .btn-continuar { background-color: #0dcaf0; color: #000; }
+        
+        .badge-tiempo { background-color: #e9ecef; color: #495057; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #dee2e6; white-space: nowrap; }
+        .badge-pausa { color: #856404; background: #fff3cd; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #ffeeba; }
+        .badge-revision { color: #055160; background: #cff4fc; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #bee5eb; }
+        .badge-ubi { background-color: #e0cffc; color: #4b2c82; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+
+        .lock-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 5px 10px; border-radius: 6px; color: #6c757d; font-size: 11px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="header">
+        <h2 class="titulo">⚙️ Taller Técnico de Posventa</h2>
+        <div style="display: flex; gap: 10px;">
+            {% if current_user.rol in ['admin', 'jefe_posventa'] %}
+                <a href="{{ url_for('historial_taller') }}" class="btn-volver" style="background: #198754;">📋 Ver Historial Finalizados</a>
+            {% endif %}
+            <a href="{{ url_for('posventa') }}" class="btn-volver">← Volver al Panel</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if tarea_actual %}
+    <div style="background: #e0f7fa; border: 2px solid #0dcaf0; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,188,212,0.1);">
+        <div>
+            <h4 style="margin: 0; color: #006064; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">⚡ Tienes una revisión en curso</h4>
+            <p style="margin: 5px 0 0 0; font-size: 18px;">
+                Producto: <strong>{{ tarea_actual.sku }}</strong> | 
+                Cant: <strong>{{ tarea_actual.cantidad }}</strong>
+            </p>
+        </div>
+        <a href="{{ url_for('pantalla_reparacion_activa', rep_id=tarea_actual.id) }}" 
+           class="btn-accion" 
+           style="background: #00bcd4; color: white; padding: 12px 25px; font-size: 14px; text-decoration: none; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+           🚀 VOLVER AL CRONÓMETRO
+        </a>
+    </div>
+    {% endif %}
+
+    <h3 style="color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">📥 Bandeja de Entrada de Reparaciones</h3>
+    
+    {% if not pendientes %}
+        <div style="text-align: center; padding: 50px; background: #fcfaff; border-radius: 8px; border: 2px dashed #dcd0ff;">
+            <p style="color: #6f42c1; font-weight: bold; font-size: 18px; margin: 0;">🎉 ¡No hay equipos pendientes! El taller está al día.</p>
+        </div>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha Envío</th>
+                    <th>Origen (Rack)</th>
+                    <th>SKU / Producto</th>
+                    <th style="text-align: center;">Cant.</th>
+                    <th>Falla / Estado</th>
+                    <th style="text-align: center;">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pendientes %}
+                <tr style="{% if item.estado == 'Pausado' %}background-color: #fffdf5;{% elif item.estado == 'En revisión' %}background-color: #f0faff;{% endif %}">
+                    
+                    <td>
+                        <span class="badge-tiempo">{{ item.fecha_ingreso.strftime('%d/%m %H:%M') }}</span>
+                    </td>
+
+                    <td><span class="badge-ubi">{{ item.ubicacion_origen or 'S/D' }}</span></td>
+
+                    <td><strong>{{ item.sku }}</strong></td>
+
+                    <td style="text-align: center;"><strong>{{ item.cantidad }}</strong></td>
+
+                    <td>
+                        {% if item.estado == 'Pausado' %}
+                            <span class="badge-pausa">⏸️ PAUSADO</span><br>
+                        {% elif item.estado == 'En revisión' %}
+                            <span class="badge-revision">🔍 EN REVISIÓN</span><br>
+                        {% endif %}
+                        <small style="color: #666; font-style: italic;">{{ item.falla_reportada or 'Sin descripción' }}</small>
+                    </td>
+
+                    <td style="text-align: center;">
+                        <div style="display: flex; justify-content: center; gap: 8px; align-items: center;">
+                            
+                            {% if item.estado == 'En revisión' %}
+                                {% if item.tecnico == current_user.username %}
+                                    <form action="{{ url_for('iniciar_reparacion', rep_id=item.id) }}" method="POST" style="margin: 0;">
+                                        <button type="submit" class="btn-accion btn-continuar">⚡ Continuar</button>
+                                    </form>
+                                {% else %}
+                                    <div class="lock-box">
+                                        🔒 <strong>{{ item.tecnico }}</strong><br>está revisando
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <form action="{{ url_for('iniciar_reparacion', rep_id=item.id) }}" method="POST" style="margin: 0;">
+                                    {% if item.estado == 'Pausado' %}
+                                        <button type="submit" class="btn-accion btn-reanudar">▶️ Reanudar</button>
+                                    {% else %}
+                                        <button type="submit" class="btn-accion btn-iniciar">▶️ Iniciar</button>
+                                    {% endif %}
+                                </form>
+                            {% endif %}
+
+                            {% if current_user.rol in ['admin', 'jefe_posventa'] %}
+                                {% if item.estado != 'En revisión' or item.tecnico == current_user.username %}
+                                <form action="{{ url_for('devolver_sin_reparar', rep_id=item.id) }}" method="POST" onsubmit="return confirm('¿Estás seguro de devolver este equipo al rack como NO APTO sin repararlo?');" style="margin: 0;">
+                                    <button type="submit" class="btn-accion" style="background-color: #6c757d;" title="Devolver sin reparar">🔙 Rechazar</button>
+                                </form>
+                                {% endif %}
+                            {% endif %}
+
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+</body>
+</html>

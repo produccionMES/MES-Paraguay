@@ -1,0 +1,11 @@
+desde consola git bash, dentro de la carpeta donde tengo todos los archivos del soft:
+
+git add .
+
+git commit -m "Hice la vista de deposito adaptable a celulares"
+
+git push
+
+Vas a PythonAnywhere -> Consola -> git pull
+
+Pestaña Web -> Botón Verde Reload.

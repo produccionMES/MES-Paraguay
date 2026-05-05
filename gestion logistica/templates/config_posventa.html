@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración de Zonas - Posventa</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; margin: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { color: #6f42c1; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        .form-box { background: #f8f0ff; padding: 20px; border-radius: 8px; border: 1px solid #e0d4f7; margin-bottom: 30px; }
+        .grid-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 15px; align-items: end; }
+        
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        label { font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px; color: #555; }
+        
+        .btn-crear { background: #198754; color: white; border: none; padding: 11px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-volver { text-decoration: none; color: #6f42c1; font-weight: bold; font-size: 14px; display: inline-block; margin-bottom: 20px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f8f9fa; color: #666; font-size: 12px; text-transform: uppercase; }
+        
+        /* --- COLORES DE ETIQUETAS (BADGES) --- */
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; display: inline-block; }
+        .badge-apto { background: #d1e7dd; color: #0f5132; }
+        .badge-taller { background: #e2e3e5; color: #383d41; }
+        .badge-outlet { background: #fff3cd; color: #856404; }
+        .badge-devolucion { background: #cfe2ff; color: #084298; }
+        .badge-scrap { background: #f8d7da; color: #842029; }
+        .badge-error { background: #eee; color: #666; }
+
+        .btn-borrar { background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold; }
+        .btn-borrar:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            .grid-form { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="{{ url_for('posventa') }}" class="btn-volver">← Volver a Posventa</a>
+    <h1>⚙️ Configuración de Zonas Operativas</h1>
+    <p style="color: #666; font-size: 14px;">Definí los nombres de tus áreas y qué tipo de mercadería aceptan.</p>
+
+    <div class="form-box">
+        <form action="{{ url_for('guardar_zona') }}" method="POST" class="grid-form">
+            <div>
+                <label>Nombre de la Zona</label>
+                <input type="text" name="nombre" placeholder="Ej: ZONA VERDE" required>
+            </div>
+            <div>
+                <label>Propósito</label>
+                <select name="proposito" required>
+                    <option value="TALLER">🛠️ TALLER (A reparar)</option>
+                    <option value="APTO">✅ APTO (Vuelve a stock)</option>
+                    <option value="OUTLET">💰 OUTLET (Venta con detalle)</option>
+                    <option value="DEVOLUCION">📦 DEVOLUCIÓN (A revisar)</option>
+                    <option value="NO APTO">❌ NO APTO (Rechazado)</option>
+                    <option value="SCRAP">🗑️ SCRAP (Descarte/Basura)</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <div style="flex: 1;">
+                    <label>Color 1</label>
+                    <input type="color" name="color1" value="#198754" style="height: 42px; width: 100%; padding: 2px; cursor: pointer;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Color 2</label>
+                    <input type="color" name="color2" value="#ffffff" style="height: 42px; width: 100%; padding: 2px; cursor: pointer;">
+                </div>
+                <div style="flex: 1.5;">
+                    <label>Diseño</label>
+                    <select name="estilo_fondo" style="height: 42px; padding: 5px;">
+                        <option value="solido">Liso (Solo C1)</option>
+                        <option value="rayado">Rayas Diagonales</option>
+                        <option value="mitad">Mitad y Mitad</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label>Descripción Corta</label>
+                <input type="text" name="descripcion" placeholder="Opcional...">
+            </div>
+            <button type="submit" class="btn-crear">Crear Zona</button>
+        </form>
+    </div>
+
+    <h3>Zonas Activas</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Propósito</th>
+                <th>Descripción</th>
+                <th style="text-align: right;">Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for zona in zonas %}
+            <tr>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        
+                        {# --- LECTOR DE CÓDIGO DE COLORES PARA EL CÍRCULO --- #}
+                        {% set bg_data = zona.color or '#6f42c1' %}
+                        {% set estilo_circulo = 'background-color: ' ~ bg_data ~ ';' %}
+                        
+                        {% if '|' in bg_data %}
+                            {% set partes = bg_data.split('|') %}
+                            {% set c1 = partes[0] %}
+                            {% set c2 = partes[1] %}
+                            {% set est = partes[2] %}
+                            
+                            {# Hacemos las rayas más finitas (4px) porque el círculo es chiquito #}
+                            {% if est == 'rayado' %}
+                                {% set estilo_circulo = 'background: repeating-linear-gradient(45deg, ' ~ c1 ~ ', ' ~ c1 ~ ' 4px, ' ~ c2 ~ ' 4px, ' ~ c2 ~ ' 8px);' %}
+                            {% elif est == 'mitad' %}
+                                {% set estilo_circulo = 'background: linear-gradient(135deg, ' ~ c1 ~ ' 50%, ' ~ c2 ~ ' 50%);' %}
+                            {% else %}
+                                {% set estilo_circulo = 'background-color: ' ~ c1 ~ ';' %}
+                            {% endif %}
+                        {% endif %}
+
+                        <div style="width: 18px; height: 18px; border-radius: 50%; {{ estilo_circulo }} border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.2); flex-shrink: 0;"></div>
+                        <strong>{{ zona.nombre }}</strong>
+                    </div>
+                </td>
+                <td>
+                    {# --- LÓGICA DE ETIQUETAS MEJORADA --- #}
+                    {% if zona.proposito == 'APTO' %}
+                        <span class="badge badge-apto">✅ {{ zona.proposito }}</span>
+                    {% elif zona.proposito == 'OUTLET' %}
+                        <span class="badge badge-outlet">💰 {{ zona.proposito }}</span>
+                    {% elif zona.proposito == 'TALLER' %}
+                        <span class="badge badge-taller">🛠️ {{ zona.proposito }}</span>
+                    {% elif zona.proposito == 'DEVOLUCION' %}
+                        <span class="badge badge-devolucion">📦 {{ zona.proposito }}</span>
+                    {% elif zona.proposito == 'SCRAP' %}
+                        <span class="badge badge-scrap">🗑️ {{ zona.proposito }}</span>
+                    {% else %}
+                        <span class="badge badge-error">⚠️ {{ zona.proposito or 'S/D' }}</span>
+                    {% endif %}
+                </td>
+                <td style="color: #888; font-size: 13px;">{{ zona.descripcion or '-' }}</td>
+                <td style="text-align: right;">
+                    <form action="{{ url_for('eliminar_zona', id_zona=zona.id) }}" method="POST" onsubmit="return confirm('¿Seguro que querés eliminar esta zona?');">
+                        <button type="submit" class="btn-borrar">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center; color: #999; padding: 30px;">No hay zonas configuradas. ¡Creá la primera arriba!</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

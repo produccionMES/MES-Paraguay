@@ -1,0 +1,3 @@
+if __name__ == '__main__':
+    print("Iniciando WMS Profesional en puerto 5001...")
+    app.run(debug=True, port=5001)

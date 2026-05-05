@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Historial - Materias Primas</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        .contenedor { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #059669; padding-bottom: 15px; margin-bottom: 20px; }
+        .btn-volver { text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; color: white; background: #059669; }
+        
+        .filtros { background: #f8f9fa; padding: 15px; border-radius: 8px; display: flex; gap: 10px; margin-bottom: 20px; border: 1px solid #dee2e6; }
+        .input-filtro { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex-grow: 1; }
+        .btn-buscar { background: #0d6efd; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #dee2e6; }
+        .tab-btn { padding: 10px 20px; border: none; background: none; font-size: 16px; font-weight: bold; color: #6c757d; cursor: pointer; border-bottom: 3px solid transparent; }
+        .tab-btn.active { color: #059669; border-bottom-color: #059669; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; color: #495057; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="header">
+        <h1 style="margin: 0; color: #059669;">📦 Historial de Materias Primas</h1>
+        <a href="{{ url_for('materias_primas') }}" class="btn-volver">← Volver a Insumos</a>
+    </div>
+
+    <form method="GET" action="{{ url_for('historial_materias_primas') }}" class="filtros">
+        <input type="hidden" name="tab" id="tab_activa_input" value="{{ tab_activa }}">
+        <input type="text" name="q_sku" class="input-filtro" placeholder="Buscar SKU..." value="{{ q_sku }}">
+        <input type="text" name="q_operario" class="input-filtro" placeholder="Operario / Encargado..." value="{{ q_operario }}">
+        <input type="date" name="q_fecha" class="input-filtro" value="{{ q_fecha }}">
+        <button type="submit" class="btn-buscar">🔍 Filtrar</button>
+        <a href="{{ url_for('historial_materias_primas') }}" class="btn-buscar" style="background: #6c757d; text-decoration: none;">Limpiar</a>
+    </form>
+
+    <div class="tabs">
+        <button class="tab-btn {% if tab_activa == 'ingresos_tab' %}active{% endif %}" onclick="cambiarTab('ingresos_tab')">📥 Ingresos</button>
+        <button class="tab-btn {% if tab_activa == 'movimientos_tab' %}active{% endif %}" onclick="cambiarTab('movimientos_tab')">🔄 Mov. Internos</button>
+        <button class="tab-btn {% if tab_activa == 'ajustes_tab' %}active{% endif %}" onclick="cambiarTab('ajustes_tab')">⚖️ Ajustes de Stock</button>
+    </div>
+
+    <div id="ingresos_tab" class="tab-content {% if tab_activa == 'ingresos_tab' %}active{% endif %}">
+        <table>
+            <tr><th>Fecha</th> <th>SKU</th> <th>Cant.</th> <th>Destino Físico</th> <th>Origen / Detalle</th> <th>Responsable</th></tr>
+            {% for i in ingresos.items %}
+            <tr>
+                <td>{{ i.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td><strong>{{ i.sku }}</strong></td>
+                <td style="color: #198754; font-weight: bold;">+{{ i.cantidad }}</td>
+                <td>{{ i.transporte }}</td>
+                <td>{{ i.origen }}</td>
+                <td>{{ i.usuario }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align: center;">No hay ingresos registrados.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div id="movimientos_tab" class="tab-content {% if tab_activa == 'movimientos_tab' %}active{% endif %}">
+        <table>
+            <tr><th>Fecha</th> <th>SKU</th> <th>Cant.</th> <th>Origen</th> <th>Destino</th> <th>Responsable</th></tr>
+            {% for m in movimientos.items %}
+            <tr>
+                <td>{{ m.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td><strong>{{ m.sku }}</strong></td>
+                <td style="color: #0d6efd; font-weight: bold;">{{ m.cantidad }}</td>
+                <td>{{ m.origen }}</td>
+                <td>{{ m.transporte }}</td>
+                <td>{{ m.usuario }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align: center;">No hay movimientos registrados.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div id="ajustes_tab" class="tab-content {% if tab_activa == 'ajustes_tab' %}active{% endif %}">
+        <table>
+            <tr><th>Fecha</th> <th>SKU</th> <th>Ubicación</th> <th>Stock Anterior</th> <th>Stock Nuevo</th> <th>Motivo</th> <th>Responsable</th></tr>
+            {% for a in ajustes.items %}
+            <tr>
+                <td>{{ a.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td><strong>{{ a.sku }}</strong></td>
+                <td>{{ a.ubicacion }}</td>
+                <td>{{ a.cantidad_anterior }}</td>
+                <td>
+                    <span class="badge" style="background: {% if a.cantidad_nueva > a.cantidad_anterior %}#d1e7dd; color: #0f5132;{% else %}#f8d7da; color: #842029;{% endif %}">
+                        {{ a.cantidad_nueva }}
+                    </span>
+                </td>
+                <td>{{ a.motivo }}</td>
+                <td>{{ a.usuario }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align: center;">No hay ajustes registrados.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+<script>
+    function cambiarTab(tabId) {
+        // Esconder todos
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        // Mostrar el elegido
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+        
+        // Actualizar el formulario oculto para no perder la pestaña al filtrar
+        document.getElementById('tab_activa_input').value = tabId;
+    }
+</script>
+
+</body>
+</html>

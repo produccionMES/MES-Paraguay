@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Producción - {{ fecha }}</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background-color: #e2e8f0; margin: 0; padding: 20px; color: #1e293b; }
+        .hoja-a4 { background: white; max-width: 950px; margin: 0 auto; padding: 40px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-radius: 8px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 20px; }
+        .header-title { margin: 0; color: #0f172a; font-size: 28px; text-transform: uppercase; letter-spacing: 1px; }
+        .header-subtitle { color: #64748b; margin: 5px 0 0 0; font-size: 14px; }
+        
+        /* TABLA DESGLOSE SALARIAL */
+        .info-costos { background: #f8fafc; border: 1px dashed #cbd5e1; padding: 15px; border-radius: 6px; margin-bottom: 30px; font-size: 11px; color: #475569; display: flex; justify-content: space-between;}
+        .info-costos strong { color: #0f172a; }
+
+        .kpi-container { display: flex; gap: 15px; margin-bottom: 30px; align-items: stretch; }
+        .kpi-box { flex: 1; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+        .kpi-box h4 { margin: 0 0 10px 0; color: #64748b; font-size: 11px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; flex-grow: 1; }
+        .kpi-box span { font-size: 24px; font-weight: 900; color: #0f172a; }
+        .kpi-costo { background: #ecfdf5; border-color: #a7f3d0; }
+        .kpi-costo span { color: #059669; }
+        
+        h3 { color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 25px; font-size: 16px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 12px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #f8fafc; color: #334155; font-weight: bold; text-transform: uppercase; font-size: 10px; }
+        td { color: #0f172a; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: bold; }
+        .text-money { color: #059669; font-weight: bold; }
+        
+        .footer { margin-top: 40px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+        
+        .controles-impresion { text-align: center; margin-bottom: 20px; }
+        .btn { padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; font-size: 14px; margin: 0 5px; text-decoration: none; display: inline-block; }
+        .btn-imprimir { background: #0d6efd; color: white; }
+        .btn-volver { background: #64748b; color: white; }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .hoja-a4 { box-shadow: none; padding: 0; max-width: 100%; }
+            .controles-impresion, .panel-config { display: none !important; } /* 🔥 ACÁ OCULTAMOS .panel-config */
+            @page { margin: 1cm; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controles-impresion">
+        <a href="javascript:history.back()" class="btn btn-volver">← Volver</a>
+        <button onclick="window.print()" class="btn btn-imprimir">🖨️ Guardar como PDF / Imprimir</button>
+    </div>
+
+    {% if current_user.rol in ['admin', 'gerencia', 'jefe_produccion'] %}
+    <div class="panel-config" style="max-width: 950px; margin: 0 auto 20px auto; background: white; padding: 20px; border-radius: 8px; border-left: 5px solid #8b5cf6; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h4 style="margin: 0 0 15px 0; color: #0f172a; font-size: 15px;">⚙️ Configuración de Costos de Equipo (Planta Completa)</h4>
+        
+        <form action="{{ url_for('guardar_config_costos') }}" method="POST" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+            
+            <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+                <label style="font-size: 11px; font-weight: bold; color: #64748b;">Sueldo Neto Op. ($)</label>
+                <input type="number" name="sueldo_neto" value="{{ configs.sueldo_neto_operario }}" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+                <label style="font-size: 11px; font-weight: bold; color: #64748b;">Cant. Operarios</label>
+                <input type="number" name="cant_operarios" value="{{ configs.cant_operarios }}" min="1" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; background: #e0f2fe; color: #0369a1;">
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+                <label style="font-size: 11px; font-weight: bold; color: #64748b;">Neto Encargado ($)</label>
+                <input type="number" name="sueldo_encargado" value="{{ configs.sueldo_neto_encargado }}" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+                <label style="font-size: 11px; font-weight: bold; color: #64748b;">% Tiempo a Prod.</label>
+                <input type="number" name="pct_encargado" value="{{ configs.pct_encargado }}" min="0" max="100" placeholder="Ej: 20" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+                <label style="font-size: 11px; font-weight: bold; color: #64748b;">Horas Mes</label>
+                <input type="number" name="horas_mensuales" value="{{ configs.horas_mensuales }}" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
+            </div>
+            
+            <button type="submit" style="background: #0f172a; color: white; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; height: 35px;">
+                💾 Actualizar
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="hoja-a4">
+        
+        <div class="header">
+            <div>
+                <h1 class="header-title">Reporte de Producción</h1>
+                <p class="header-subtitle">Análisis de rendimiento y Costos de Mano de Obra Directa (MOD)</p>
+            </div>
+            <div style="text-align: right;">
+                <p style="margin: 0; font-weight: bold; font-size: 18px; color: #0d6efd;">{{ fecha }}</p>
+                <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px;">Generado por: {{ current_user.username }}</p>
+            </div>
+        </div>
+
+        {% if desglose.costo_total_mes > 0 %}
+        <div class="info-costos">
+            <div>
+                <strong>Base de Cálculo Salarial (Planta Completa)</strong><br>
+                Capacidad: <strong>{{ configs.cant_operarios }} operarios</strong> | Jornada: <strong>{{ configs.horas_mensuales }} hs/mes</strong>
+            </div>
+            <div class="text-right">
+                Costo Total Empresa Mensual (Línea + Encargado): <strong>${{ "{:,.2f}".format(desglose.costo_total_mes).replace(',','@').replace('.',',').replace('@','.') }}</strong><br>
+                Costo Hora Planta: <strong class="text-money">${{ "{:,.2f}".format(desglose.costo_hora).replace(',','@').replace('.',',').replace('@','.') }}</strong>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="kpi-container">
+            <div class="kpi-box">
+                <h4>Unidades Producidas</h4>
+                <span>{{ total_unidades }} <small style="font-size: 14px;">u</small></span>
+            </div>
+            <div class="kpi-box">
+                <h4>Tiempo Invertido</h4>
+                <span>{{ tiempo_total_str }}</span>
+            </div>
+            
+            
+            <div class="kpi-box kpi-costo">
+                <h4>Costo Promedio x Unidad</h4>
+                {% set promedio_general = 0 %}
+                {% if total_unidades > 0 %}
+                    {% set promedio_general = total_costo_dia / total_unidades %}
+                {% endif %}
+                <span>${{ "{:,.2f}".format(promedio_general).replace(',','@').replace('.',',').replace('@','.') }}</span>
+            </div>
+            
+            <div class="kpi-box kpi-costo">
+                <h4>Costo Total MOD Día</h4>
+                <span>${{ "{:,.2f}".format(total_costo_dia).replace(',','@').replace('.',',').replace('@','.') }}</span>
+            </div>
+        </div>
+
+        <h3>1. Resumen Acumulado por Producto (SKU)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Descripción</th>
+                    <th class="text-center">Órdenes</th>
+                    <th class="text-center">Cant. Total</th>
+                    <th class="text-right">Tiempo Acum.</th>
+                    <th class="text-right">Costo MOD x Unidad</th>
+                    <th class="text-right">Costo MOD Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sku, data in resumen_sku.items() %}
+                    {% set mins_totales = (data.segundos // 60) | int %}
+                    {% set costo_unidad = 0 %}
+                    {% if data.cantidad > 0 %}
+                        {% set costo_unidad = data.costo / data.cantidad %}
+                    {% endif %}
+
+                    <tr>
+                        <td class="fw-bold">{{ sku }}</td>
+                        <td>{{ data.descripcion }}</td>
+                        <td class="text-center">{{ data.ordenes }}</td>
+                        <td class="text-center fw-bold">{{ data.cantidad }}</td>
+                        <td class="text-right">{{ mins_totales }}m</td>
+                        <td class="text-right" style="color: #64748b;">${{ "{:,.2f}".format(costo_unidad).replace(',','@').replace('.',',').replace('@','.') }}</td>
+                        <td class="text-right text-money">${{ "{:,.2f}".format(data.costo).replace(',','@').replace('.',',').replace('@','.') }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="text-center">No hay producción registrada en esta fecha.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h3>2. Registro Detallado de Tiempos y Costos por Lote</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Hora Fin</th>
+                    <th>SKU</th>
+                    <th class="text-center">Cant.</th>
+                    <th>Operario</th>
+                    <th class="text-right">Duración</th>
+                    <th class="text-right">Costo Total</th>
+                    <th class="text-right">Costo x Uni.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in ordenes %}
+                    {% set duracion_seg = 0 %}
+                    {% set duracion_str = "-" %}
+                    
+                    {% if o.fecha_inicio and o.fecha_fin %}
+                        {% set diff = (o.fecha_fin - o.fecha_inicio).total_seconds() %}
+                        {% if diff > 0 %}{% set duracion_seg = diff %}{% endif %}
+                        
+                        {% set mins = (duracion_seg // 60) | int %}
+                        {% set segs = (duracion_seg % 60) | int %}
+                        {% set duracion_str = mins ~ "m " ~ segs ~ "s" %}
+                    {% endif %}
+                    
+                    {% set costo_orden = duracion_seg * desglose.costo_segundo %}
+                    {% set costo_uni_orden = 0 %}
+                    {% if o.cantidad > 0 %}
+                        {% set costo_uni_orden = costo_orden / o.cantidad %}
+                    {% endif %}
+                    
+                    <tr>
+                        <td>{{ o.fecha_fin.strftime('%H:%M') if o.fecha_fin else '-' }}</td>
+                        <td class="fw-bold">{{ o.sku }}</td>
+                        <td class="text-center">{{ o.cantidad }}</td>
+                        <td>{{ o.operario_fin or '-' }}</td>
+                        <td class="text-right">{{ duracion_str }}</td>
+                        
+                        <td class="text-right" style="color: #64748b;">${{ "{:,.2f}".format(costo_orden).replace(',','@').replace('.',',').replace('@','.') }}</td>
+                        <td class="text-right text-money">${{ "{:,.2f}".format(costo_uni_orden).replace(',','@').replace('.',',').replace('@','.') }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="footer">
+            Documento generado por MES - {{ datetime.now().strftime('%d/%m/%Y %H:%M') }}
+        </div>
+
+    </div>
+
+</body>
+</html>

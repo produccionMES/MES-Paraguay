@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Catálogo de Productos</title>
+    <style>
+        /* 2. ANTI-SCROLL FANTASMA Y CAJAS RÍGIDAS */
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 20px; color: #333; }
+        .contenedor { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; margin-bottom: 20px; }
+        .btn-volver { text-decoration: none; background: #6c757d; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        th { background-color: #e9ecef; position: sticky; top: 0; }
+        
+        /* Contenedor de la tabla para scroll vertical y HORIZONTAL en móviles */
+        .tabla-container { 
+            max-height: 600px; 
+            overflow-y: auto; 
+            overflow-x: auto; 
+            -webkit-overflow-scrolling: touch; 
+            width: 100%; 
+        }
+        
+        .badge-total { background: #0d6efd; color: white; padding: 4px 8px; border-radius: 12px; font-size: 14px; }
+
+        /* 3. MODO CELULAR */
+        @media (max-width: 768px) {
+            body { margin: 10px; }
+            .contenedor { padding: 15px; }
+            .header { 
+                flex-direction: column; 
+                gap: 15px; 
+                text-align: center; 
+            }
+            .header h2 { font-size: 22px; }
+            .btn-volver { 
+                width: 100%; 
+                text-align: center; 
+                display: block; 
+                padding: 15px; 
+                font-size: 16px;
+            }
+            th, td { padding: 10px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="header">
+        <h2 style="margin: 0;">📚 Catálogo Maestro de Artículos</h2>
+        <a href="{{ url_for('logistica') }}" class="btn-volver">← Volver al Mapa</a>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <span class="badge-total">Total de productos registrados: {{ productos|length }}</span>
+    </div>
+
+    {% if not productos %}
+        <p style="color: #6c757d; font-style: italic;">El catálogo está vacío. Utiliza el botón "Subir Excel" en la pantalla principal para importar tu base de datos.</p>
+    {% else %}
+        <div class="tabla-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>SKU (Código Interno)</th>
+                        <th>EAN (Código de Barras)</th>
+                        <th>Descripción del Producto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in productos %}
+                    <tr>
+                        <td style="color: #adb5bd;">{{ loop.index }}</td>
+                        <td><strong>{{ p.sku }}</strong></td>
+                        <td>{{ p.ean if p.ean else '-' }}</td>
+                        <td>{{ p.descripcion }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

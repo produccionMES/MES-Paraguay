@@ -1,0 +1,56 @@
+PASO 1: Descargar el código en PythonAnywhere
+Entrá a tu cuenta de PythonAnywhere.
+
+Andá a la pestaña Consoles (Consolas) y hacé clic en Bash (esto te abre una pantallita negra en el navegador, igual a la de tu compu pero es la compu de PythonAnywhere).
+
+Pegá este comando para "chupar" el código desde tu GitHub y apretá Enter:
+
+Bash
+git clone https://github.com/produccionMES/MES---ERP.git
+⚠️ ALERTA DE SEGURIDAD DE GITHUB: Como tu repositorio seguro es privado, la consola te va a pedir tu Username (tu usuario de GitHub) y tu Password.
+Ojo acá: GitHub ya no acepta tu contraseña normal para esto. Tenés que usar un Token. Si pegás tu contraseña normal te va a dar error de autenticación.
+
+¿Cómo sacar el Token en 1 minuto? (Si no lo tenés):
+
+En GitHub, tocá tu foto de perfil arriba a la derecha -> Settings (Configuración).
+
+Bajá del todo a la izquierda y tocá Developer settings.
+
+Tocá Personal access tokens -> Tokens (classic).
+
+Botón Generate new token (classic).
+
+Ponele un nombre (ej: "PythonAnywhere"), en Expiration poné "No expiration", y tildá la cajita principal que dice repo (esto le da permiso para leer tu código).
+
+Bajá del todo y tocá el botón verde Generate token.
+
+Copiá ese choclo de letras y números. ¡Esa es tu nueva "contraseña" para la consola!
+
+(Volvé a la consola de PythonAnywhere, poné tu usuario, y cuando te pida Password, pegá el Token. Ojo: cuando pegás en Linux no se ven las letritas, parece que no escribiste nada, pero pegalo y dale Enter).
+
+PASO 2: Preparar la casa (Instalar librerías)
+Una vez que se descargó, tu código ahora vive en una carpeta llamada MES---ERP dentro de PythonAnywhere. Vamos a entrar ahí y prepararle el entorno.
+
+Tirá estos comandos uno por uno en esa misma consola Bash:
+
+1. Entramos a la carpeta de tu proyecto:
+
+Bash
+cd MES---ERP
+2. Creamos el entorno virtual (la burbuja donde instalamos todo):
+
+Bash
+python3 -m venv venv
+3. Activamos la burbuja:
+
+Bash
+source venv/bin/activate
+(Vas a ver que al principio del renglón ahora dice (venv)).
+
+4. Instalamos las herramientas (Acá es donde lee tu archivo requirements.txt):
+
+Bash
+pip install -r requirements.txt
+(Esto va a empezar a descargar Flask, SQLAlchemy y todas las librerías. Puede tardar un par de minutos. Dejalo que termine de procesar).
+
+Hacé esto y avisame cuando termine de instalar las librerías, o chiflame si te trabás con lo del Token de GitHub. ¡Ya estamos a nada de prender el servidor!

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bandeja de Devoluciones - Administración</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f6fb; margin: 20px; color: #333; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: white; padding: 15px 20px; border-bottom: 3px solid #1d4ed8; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-radius: 8px; }
+        .btn-nav { text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; font-size: 14px; color: white; transition: 0.3s; display: inline-flex; align-items: center; gap: 5px; }
+        
+        .flash-msg { padding: 15px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+
+        /* 🔥 TARJETAS DE LA BANDEJA 🔥 */
+        .grid-bandeja { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; margin-bottom: 40px; }
+        
+        .card-item {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            border-top: 5px solid #6c757d; /* Gris por defecto (Pendiente) */
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s;
+            overflow: hidden;
+        }
+        .card-item:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.12); }
+        
+        .card-en-revision { border-top-color: #0d6efd; } /* Azul cuando alguien lo está revisando */
+
+        .card-header { padding: 15px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: flex-start; background: #fafafa; }
+        .sku-titulo { margin: 0; font-size: 18px; color: #1e293b; font-weight: 900; }
+        .badge-cant { background: #333; color: white; padding: 4px 10px; border-radius: 20px; font-size: 14px; font-weight: bold; }
+
+        .card-body { padding: 15px; flex-grow: 1; font-size: 13px; color: #495057; display: flex; flex-direction: column; gap: 8px; }
+        
+        /* 🔥 RELOJES SLA 🔥 */
+        .sla-box {
+            display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 14px; margin-top: 5px; border: 1px solid transparent;
+        }
+        .sla-ok { background: #d1e7dd; color: #0f5132; border-color: #badbcc; }
+        .sla-warning { background: #fff3cd; color: #856404; border-color: #ffecb5; }
+        .sla-danger { background: #f8d7da; color: #842029; border-color: #f5c2c7; animation: blink-red 1.5s infinite; }
+
+        @keyframes blink-red { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        .card-footer { padding: 15px; border-top: 1px solid #f0f0f0; display: flex; gap: 10px; }
+        
+        .btn-accion { flex: 1; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; text-align: center; font-size: 14px; }
+        .btn-iniciar { background-color: #0d6efd; color: white; }
+        .btn-iniciar:hover { background-color: #0b5ed7; }
+        .btn-resolver { background-color: #198754; color: white; animation: pulse-green 2s infinite; }
+        
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(25, 135, 84, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+        }
+
+        /* 🔥 MODAL DE RESOLUCIÓN 🔥 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(3px);}
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        
+        .opcion-resolucion {
+            display: flex; align-items: center; gap: 15px; padding: 15px; border: 2px solid #dee2e6; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: 0.2s;
+        }
+        .opcion-resolucion:hover { background: #f8f9fa; }
+        .opcion-resolucion input[type="radio"] { transform: scale(1.5); cursor: pointer; }
+        
+        .op-apto { border-color: #198754; background: #f0fff4; }
+        .op-outlet { border-color: #ffc107; background: #fffdf2; }
+        .op-taller { border-color: #6f42c1; background: #fcfaff; }
+
+        .form-control { width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; box-sizing: border-box; margin-top: 15px; font-family: inherit; resize: vertical; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h2 style="margin: 0; color: #1d4ed8;">🔵 Bandeja de Devoluciones</h2>
+            <a href="{{ url_for('posventa') }}" class="btn-nav" style="background-color: #6c757d;">← Volver a Posventa</a>
+        </div>
+        <div style="font-weight: bold; color: #495057;">
+            👨‍💼 Administrativo: {{ current_user.username }}
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">
+        <h3 style="margin: 0; color: #333;">📦 Pendientes de Revisar</h3>
+    </div>
+
+    {% if ubicacion_dev_id %}
+    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-top: 4px solid #1d4ed8; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #1d4ed8;">📥 Registrar Nueva Devolución Manualmente</h3>
+        
+        <form action="{{ url_for('agregar_item', ubicacion_id=ubicacion_dev_id) }}" method="POST">
+            
+            <div id="alerta-comercial" style="display: none; background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; margin-bottom: 15px; border-radius: 4px; color: #856404; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <div style="flex: 4; position: relative;">
+                    <input type="text" id="buscador-producto" name="sku_manual" placeholder="🔍 Buscar SKU o Producto..." class="form-control" style="width: 100%; margin-top:0;" required autocomplete="off">
+                    <input type="hidden" id="producto_id_real" name="producto_id">
+                    <div id="sugerencias-box" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 0 0 6px 6px;"></div>
+                </div>
+                <input type="number" name="cantidad" placeholder="Cant." class="form-control" style="width: 80px; margin-top:0;" required min="1">
+                <input type="text" name="lote" placeholder="Nº Lote (Opc)" class="form-control" style="flex: 1; margin-top:0;">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <input type="text" name="observaciones" placeholder="Nº Venta / Motivo / Remito" class="form-control" style="width: 100%; margin-top:0;" required>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <select name="estado_calidad" class="form-control" style="width: 180px; margin: 0; cursor: pointer; height: 40px;">
+                    <option value="no_apto">⚠️ A REVISAR</option>
+                    <option value="apto">✅ APTO</option>
+                    <option value="outlet">🟡 OUTLET</option>
+                </select>
+
+                <button type="submit" class="btn-accion" style="background-color: #1d4ed8; color: white; padding: 0 25px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; height: 40px; width: auto !important; flex: none !important; display: inline-flex; align-items: center; gap: 8px;">
+                    <span>+</span> Ingresar
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="grid-bandeja">
+        
+        {# ACA ITERAMOS SOBRE LOS ITEMS QUE ESTÁN EN EL ESTADO/ZONA "DEVOLUCIONES" #}
+        {% for item in devoluciones %}
+            <div class="card-item {% if item.estado_revision == 'en_revision' %}card-en-revision{% endif %}">
+                <div class="card-header">
+                    <div>
+                        <h3 class="sku-titulo">{{ item.producto_detalle.sku }}</h3>
+                        <small style="color: #6c757d; font-weight: 600;">{{ item.producto_detalle.descripcion }}</small>
+                    </div>
+                    <div class="badge-cant">📦 {{ item.cantidad }} u.</div>
+                </div>
+
+                <div class="card-body">
+                    <div><strong>Origen:</strong> {{ item.observaciones or 'Ingreso por Logística' }}</div>
+                    <div><strong>Lote:</strong> {{ item.lote or 'N/A' }}</div>
+                    
+                    
+                    {% if item.fecha_ingreso %}
+                        <div class="reloj-sla sla-box" data-fecha="{{ item.fecha_ingreso.strftime('%Y-%m-%dT%H:%M:%S') }}">
+                            ⏳ Calculando tiempo...
+                        </div>
+                    {% else %}
+                        <div class="sla-box sla-ok">
+                            ⏱️ Sin fecha registrada
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="card-footer">
+                    {% if item.estado_revision == 'en_revision' and item.revisor_id == current_user.id %}
+                        <button type="button" class="btn-accion btn-resolver" onclick="abrirModalResolucion('{{ item.id }}', '{{ item.producto_detalle.sku }}')">
+                            📋 Dar Visto Bueno (Resolver)
+                        </button>
+                    {% elif item.estado_revision == 'en_revision' %}
+                        <button type="button" class="btn-accion" style="background: #e9ecef; color: #6c757d; cursor: not-allowed;" disabled>
+                            🔒 En revisión por otro usuario
+                        </button>
+                    {% else %}
+                        <form action="{{ url_for('iniciar_revision_devolucion', item_id=item.id) }}" method="POST" style="width: 100%;">
+                            <button type="submit" class="btn-accion btn-iniciar">
+                                🔎 Iniciar Revisión
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div style="grid-column: 1 / -1; text-align: center; padding: 50px; background: white; border-radius: 12px; border: 2px dashed #ced4da; color: #6c757d;">
+                <span style="font-size: 40px;">🎉</span>
+                <h3>¡Bandeja Limpia!</h3>
+                <p>No hay devoluciones pendientes de revisión en este momento.</p>
+            </div>
+        {% endfor %}
+
+    </div>
+
+    <div id="modalResolucion" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="margin-top: 0; color: #1e293b; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px;">
+                📋 Resolución Final
+            </h2>
+            <p style="color: #6c757d; font-weight: bold; margin-bottom: 20px;">
+                Producto: <span id="modal-sku-txt" style="color: #0d6efd;"></span>
+            </p>
+
+            <form id="formResolucion" method="POST" action="">
+                <label class="opcion-resolucion op-apto">
+                    <input type="radio" name="destino_final" value="ZVERDE" required>
+                    <div>
+                        <strong style="color: #198754; font-size: 16px; display: block;">✅ APTO PARA VENTA</strong>
+                        <small style="color: #495057;">El producto está en perfectas condiciones. Va a Zona Verde.</small>
+                    </div>
+                </label>
+
+                <label class="opcion-resolucion op-outlet">
+                    <input type="radio" name="destino_final" value="ZAMARILLA">
+                    <div>
+                        <strong style="color: #d97706; font-size: 16px; display: block;">💰 OUTLET / SEGUNDA</strong>
+                        <small style="color: #495057;">Tiene detalles estéticos o falta de caja. Va a Zona Amarilla.</small>
+                    </div>
+                </label>
+
+                <label class="opcion-resolucion op-taller">
+                    <input type="radio" name="destino_final" value="ZBLANCA">
+                    <div>
+                        <strong style="color: #6f42c1; font-size: 16px; display: block;">🛠️ ENVIAR A REPARAR</strong>
+                        <small style="color: #495057;">Requiere revisión técnica. Va directo al Taller (Zona Blanca).</small>
+                    </div>
+                </label>
+
+                <textarea name="observaciones_finales" class="form-control" rows="3" placeholder="Observaciones de la revisión (opcional)..."></textarea>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="btn-accion" style="background: #e9ecef; color: #495057;" onclick="cerrarModalResolucion()">Cancelar</button>
+                    <button type="submit" class="btn-accion" style="background: #1d4ed8; color: white;">Confirmar y Mover ➔</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function actualizarRelojesSLA() {
+            const relojes = document.querySelectorAll('.reloj-sla');
+            const ahora = new Date();
+
+            relojes.forEach(reloj => {
+                const fechaIngresoStr = reloj.getAttribute('data-fecha');
+                if (!fechaIngresoStr) return;
+
+                const fechaIngreso = new Date(fechaIngresoStr);
+                const diferenciaMs = ahora - fechaIngreso;
+
+                if (diferenciaMs < 0) {
+                    reloj.className = "reloj-sla sla-box sla-ok";
+                    reloj.innerHTML = `⏱️ Recién ingresado`;
+                    return;
+                }
+
+                const dias = Math.floor(diferenciaMs / (1000 * 60 * 60 * 24));
+                const horas = Math.floor((diferenciaMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutos = Math.floor((diferenciaMs % (1000 * 60 * 60)) / (1000 * 60));
+                const segundos = Math.floor((diferenciaMs % (1000 * 60)) / 1000);
+
+                const hStr = horas.toString().padStart(2, '0');
+                const mStr = minutos.toString().padStart(2, '0');
+                const sStr = segundos.toString().padStart(2, '0');
+
+                let textoReloj = `⏱️ Tiempo: ${hStr}:${mStr}:${sStr}`;
+                if (dias > 0) textoReloj = `⏳ ${dias} días, ${hStr}:${mStr}:${sStr}`;
+
+                let claseColor = 'sla-ok'; 
+                if (dias >= 1 && dias < 2) claseColor = 'sla-warning'; 
+                else if (dias >= 2) claseColor = 'sla-danger'; 
+
+                reloj.className = `reloj-sla sla-box ${claseColor}`;
+                reloj.innerHTML = textoReloj;
+            });
+        }
+
+        if (document.querySelectorAll('.reloj-sla').length > 0) {
+            actualizarRelojesSLA(); 
+            setInterval(actualizarRelojesSLA, 1000);
+        }
+
+        // Lógica del Modal
+        const modal = document.getElementById('modalResolucion');
+        const formResolucion = document.getElementById('formResolucion');
+        const skuLabel = document.getElementById('modal-sku-txt');
+
+        function abrirModalResolucion(itemId, sku) {
+            formResolucion.action = `/resolver_devolucion/${itemId}`;
+            skuLabel.innerText = sku;
+            modal.style.display = 'flex';
+        }
+
+        function cerrarModalResolucion() {
+            modal.style.display = 'none';
+        }
+    </script>
+
+    <script>
+        // BUSCADOR DE PRODUCTOS PARA EL INGRESO MANUAL
+        const buscador = document.getElementById('buscador-producto');
+        const sugerenciasBox = document.getElementById('sugerencias-box');
+        const idRealInput = document.getElementById('producto_id_real');
+
+        if (buscador) {
+            function fetchProductos(query = '') {
+                fetch(`/buscar_productos_sugeridos?q=${encodeURIComponent(query)}&sector=posventa`)
+                    .then(r => r.json())
+                    .then(data => {
+                        sugerenciasBox.innerHTML = '';
+                        if (data.length > 0) {
+                            data.forEach(p => {
+                                const div = document.createElement('div');
+                                div.style.padding = '10px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #eee'; div.style.fontSize = '13px';
+                                div.innerHTML = `<strong>${p.sku}</strong> - ${p.nombre}`;
+                                div.onclick = () => {
+                                    buscador.value = `${p.sku} - ${p.nombre}`;
+                                    idRealInput.value = p.id;
+                                    sugerenciasBox.style.display = 'none';
+                                    
+                                    // 🔥 DISPARAMOS EL CENTINELA (Simulamos un cambio)
+                                    buscador.dispatchEvent(new Event('change'));
+                                };
+                                div.onmouseover = () => div.style.backgroundColor = '#f1f8ff';
+                                div.onmouseout = () => div.style.backgroundColor = 'white';
+                                sugerenciasBox.appendChild(div);
+                            });
+                            sugerenciasBox.style.display = 'block';
+                        } else { sugerenciasBox.style.display = 'none'; }
+                    });
+            }
+            buscador.addEventListener('click', () => fetchProductos(buscador.value));
+            buscador.addEventListener('input', () => fetchProductos(buscador.value));
+            document.addEventListener('click', (e) => {
+                if (!buscador.contains(e.target) && !sugerenciasBox.contains(e.target)) sugerenciasBox.style.display = 'none';
+            });
+        }
+    </script>
+
+    <script>
+        // 🔥 EL RADAR CENTINELA DE INCIDENCIAS COMERCIALES 🔥
+        document.getElementById('buscador-producto').addEventListener('change', function() {
+            
+            // Agarramos el texto (Si tiene el formato "SKU - Nombre", sacamos solo el SKU)
+            let skuEscaneado = this.value.split(' - ')[0].trim();
+            let alertaBox = document.getElementById('alerta-comercial');
+
+            if (skuEscaneado.length > 2) {
+                // Vamos a preguntarle al servidor en secreto
+                fetch('/api/verificar_incidencia/' + encodeURIComponent(skuEscaneado))
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        // 🚨 ¡HAY COINCIDENCIA! Armamos el cartel
+                        let html = '<strong style="font-size:15px;">⚠️ ¡ATENCIÓN! Este SKU tiene reclamos comerciales abiertos:</strong><ul style="margin: 8px 0 0 0; padding-left: 20px;">';
+                        
+                        data.data.forEach(inc => {
+                            html += `
+                                <li style="margin-bottom: 5px;">
+                                    Ticket <b>${inc.ticket}</b> | Venta: <b><span style="background: #ffc107; color: black; padding: 1px 4px; border-radius: 3px;">${inc.venta}</span></b> | Cliente: <b>${inc.cliente}</b> 
+                                    <br> <small style="color: #664d03;"><i>Motivo Reportado: ${inc.motivo}</i></small>
+                                </li>`;
+                        });
+                        
+                        html += '</ul>';
+                        alertaBox.innerHTML = html;
+                        alertaBox.style.display = 'block'; // Lo hacemos visible
+                    } else {
+                        // No hay reclamos, escondemos el cartel
+                        alertaBox.style.display = 'none';
+                    }
+                })
+                .catch(err => console.log("Error al verificar incidencia:", err));
+            } else {
+                alertaBox.style.display = 'none';
+            }
+        });
+    </script>
+
+</body>
+</html>

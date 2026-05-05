@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Detalle de Carga - WMS</title>
+    <style>
+        :root {
+            --primary: #0f172a; --primary-light: #1e293b; --accent: #0d6efd;
+            --success: #16a34a; --danger: #dc2626; --warning: #eab308;
+            --bg: #f1f5f9; --card-bg: #ffffff; --text-main: #0f172a; --text-muted: #64748b;
+        }
+
+        /* 🔥 1. ANTI-SCROLL FANTASMA (Página rígida) 🔥 */
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); color: var(--text-main); -webkit-tap-highlight-color: transparent; padding-bottom: 40px; }
+        
+        /* NAVBAR RESPONSIVA */
+        .navbar { 
+            background-color: var(--primary); 
+            color: white; 
+            padding: 15px 20px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            position: sticky; 
+            top: 0; 
+            z-index: 100; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+            flex-wrap: nowrap;
+            gap: 10px;
+        }
+        .navbar h2 { margin: 0; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        
+        .btn-volver { background: #334155; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; display: inline-flex; align-items: center; white-space: nowrap; }
+        
+        .container { padding: 20px; max-width: 900px; margin: 0 auto; }
+        
+        .timer-bar {
+            background: #1e293b; color: #38bdf8; padding: 12px; border-radius: 12px; text-align: center;
+            font-weight: 800; font-size: 1.3em; margin-bottom: 20px; display: flex; justify-content: center;
+            align-items: center; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #334155;
+        }
+
+        .flash-msg { background: #fef08a; color: #854d0e; padding: 15px; border-radius: 8px; font-weight: bold; text-align: center; margin-bottom: 20px; border: 2px solid #fde047; }
+
+        .task-card { background: var(--card-bg); border-radius: 16px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 15px; }
+
+        .task-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; }
+        .sku-title { font-size: 24px; font-weight: 900; color: var(--primary); margin: 0; word-break: break-all; }
+        .sku-desc { font-size: 16px; color: var(--text-muted); font-weight: 600; margin-top: 4px; }
+        .stock-badge { background: #e0f2fe; color: #0369a1; padding: 6px 10px; border-radius: 6px; font-size: 14px; font-weight: bold; display: inline-block; margin-top: 8px; border: 1px solid #bae6fd; }
+
+        .qty-box { background: var(--primary); color: white; border-radius: 12px; padding: 15px 25px; text-align: center; min-width: 100px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .qty-number { font-size: 38px; font-weight: 900; line-height: 1; margin-bottom: 4px; }
+        .qty-label { font-size: 12px; font-weight: bold; color: #94a3b8; text-transform: uppercase; }
+
+        .locations-box { background: #f0fdf4; border: 2px dashed #86efac; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .locations-box.error-box { background: #fef2f2; border-color: #fca5a5; }
+        .loc-item { font-size: 18px; font-weight: 700; color: #166534; display: flex; align-items: center; gap: 10px; }
+        
+        .actions-row { display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; }
+        .btn-action { display: flex; justify-content: center; align-items: center; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; text-decoration: none; cursor: pointer; transition: 0.1s; border: none; gap: 8px; text-align: center; }
+        .btn-action:active { transform: scale(0.97); }
+        
+        .btn-primary { flex: 2; background: var(--primary-light); color: white; min-width: 180px; }
+        .btn-warning { flex: 1; background: var(--warning); color: #713f12; min-width: 150px; }
+        .btn-danger { background: white; color: var(--danger); border: 2px solid #fecaca; padding: 15px 20px; }
+        .btn-secondary { background: #64748b; color: white; }
+
+        .status-block { background: #fee2e2; color: #991b1b; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; border: 2px solid #fecaca; flex: 2; width: 100%; }
+        
+        .prod-status-box { padding: 12px; border-radius: 12px; font-weight: bold; text-align: center; flex: 1; border: 2px solid; min-width: 150px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .status-pendiente { background: #fefce8; color: #854d0e; border-color: #fef08a; }
+        .status-proceso { background: #f0f9ff; color: #075985; border-color: #bae6fd; justify-content: center; }
+
+        .empty-state { text-align: center; padding: 60px 20px; background: white; border-radius: 16px; border: 2px dashed #cbd5e1; }
+
+        /* 🔥 2. MODO CELULAR 🔥 */
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .task-header { flex-direction: column; align-items: stretch; text-align: center; }
+            .qty-box { width: 100%; margin-top: 10px; padding: 10px; }
+            .qty-number { font-size: 45px; }
+            
+            .sku-title { font-size: 22px; }
+            
+            .actions-row { flex-direction: column; align-items: stretch; }
+            .btn-action { width: 100% !important; flex: none !important; padding: 18px !important; font-size: 17px; }
+            
+            .btn-danger { order: 3; }
+            
+            .timer-bar { font-size: 1.1em; }
+            
+            div[style*="background: #fef2f2"] { padding: 15px !important; }
+            input[name="observacion"] { font-size: 16px !important; padding: 15px !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2>📋 Lote: {{ lote.split(' - ')[0] if ' - ' in lote else lote }}</h2>
+        <a href="{{ url_for('ver_picking') }}" class="btn-volver">← Lotes</a>
+    </div>
+
+    <div class="container">
+        {% if hora_inicio_general %}
+        <div class="timer-bar">
+            <span>⏱️ TIEMPO GENERAL DEL LOTE:</span>
+            <span id="main-timer" data-start="{{ hora_inicio_general }}">00:00</span>
+        </div>
+        {% endif %}
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for message in messages %}
+              <div class="flash-msg">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div id="lista-tareas">
+            {% if tareas %}
+                {% for t in tareas %}
+                <div class="task-card">
+                    <div class="task-header">
+                        <div>
+                            <h3 class="sku-title">{{ t.sku }}</h3>
+                            <div class="sku-desc">{{ t.descripcion }}</div>
+                            <div class="stock-badge">📦 Stock Físico: {{ stock_por_sku[t.sku] }}</div>
+                        </div>
+                        <div class="qty-box">
+                            <div class="qty-number">{{ t.cantidad }}</div>
+                            <div class="qty-label">Unidades</div>
+                        </div>
+                    </div>
+
+                    {% if '❌' in ubicaciones_por_sku[t.sku] or 'INCOMPLETO' in t.ubicacion_excel %}
+                    <div class="locations-box error-box">
+                        {% if t.ubicacion_excel and 'INCOMPLETO' in t.ubicacion_excel %}
+                            <div class="loc-item" style="color:var(--danger)">⚠️ Faltante al rutear</div>
+                        {% endif %}
+
+                        {% if '❌' in ubicaciones_por_sku[t.sku] %}
+                            <div class="loc-item" style="color:var(--danger)">{{ ubicaciones_por_sku[t.sku] }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="actions-row">
+                        {% if current_user.rol in ['admin', 'jefe_logistica', 'supervisor'] %}
+                        <form action="{{ url_for('anular_tarea', tarea_id=t.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('⚠️ ¿Anular este pedido?');">
+                            <button type="submit" class="btn-action btn-danger">🗑️ Anular</button>
+                        </form>
+                        {% endif %}
+
+                        {% set orden_fab = ordenes_produccion_status.get(t.sku) if ordenes_produccion_status else None %}
+                        
+                        {# 🔥 ACÁ ESTÁ LA MAGIA: Solo mostramos estado de fábrica si está activo. Si está Entregado o Anulado, pasa de largo. 🔥 #}
+                        {% if orden_fab and orden_fab.estado in ['Pendiente', 'En Proceso', 'Finalizado'] %}
+                            
+                            {% if orden_fab.estado == 'Finalizado' %}
+                                <form action="{{ url_for('despachar_produccion', tarea_id=t.id, orden_id=orden_fab.id) }}" method="POST" style="flex: 2; margin: 0;">
+                                    <button type="submit" class="btn-action" style="background: var(--success); color: white; width: 100%;">
+                                        ✅ Despachar de Fábrica ({{ orden_fab.cantidad }}u)
+                                    </button>
+                                </form>
+                            {% else %}
+                                <div class="prod-status-box {% if orden_fab.estado == 'Pendiente' %}status-pendiente{% else %}status-proceso{% endif %}">
+                                    {% if orden_fab.estado == 'Pendiente' %}
+                                        <span>⏳ Esperando Fábrica...</span>
+                                        <form action="{{ url_for('anular_orden_produccion', orden_id=orden_fab.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('¿Seguro que querés cancelar el pedido a fábrica?');">
+                                            <button type="submit" style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                                ✖ Cancelar
+                                            </button>
+                                        </form>
+                                    {% elif orden_fab.estado == 'En Proceso' %}
+                                        <span>⚙️ En Producción</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+
+                        {% else %}
+                            
+                            {# 🛒 SI NO HAY PEDIDO A FÁBRICA (O SI YA SE DESPACHÓ), MOSTRAMOS EL BOTÓN DE PEDIR SOLO SI SIGUE FALTANDO STOCK #}
+                            {% if stock_por_sku[t.sku] < t.cantidad %}
+                                {% set faltante = t.cantidad - stock_por_sku[t.sku] %}
+                                
+                                {% if current_user.rol in ['admin', 'jefe_logistica', 'supervisor'] and t.sku.upper().startswith('CORT') %}
+                                    <form action="{{ url_for('solicitar_produccion') }}" method="POST" style="display:inline-flex; gap: 5px; align-items: center;">
+                                        <input type="hidden" name="sku" value="{{ t.sku }}">
+                                        <input type="hidden" name="lote" value="{{ lote }}">
+                                        <input type="hidden" name="cantidad" value="{{ faltante }}">
+    
+                                        <input type="hidden" name="prioridad" id="input_prio_{{ t.id }}" value="Normal">
+                                        <button type="button" id="btn_prio_{{ t.id }}" onclick="cambiarPrioridad('{{ t.id }}')" 
+                                            style="background: #e2e8f0; color: #475569; border: 1px solid #cbd5e1; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: pointer; width: 95px; transition: 0.1s;">
+                                            🟢 NORMAL
+                                        </button>
+
+                                        <button type="submit" style="background-color: #f59e0b; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">
+                                            🏭 Pedir a Fábrica
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <div style="flex: 1; margin: 0; padding: 10px; background-color: #fff3cd; color: #856404; border-radius: 6px; font-weight: bold; text-align: center; border: 1px solid #ffeeba; font-size: 14px;">
+                                        ⚠️ Faltan {{ faltante }} u. 
+                                        {% if current_user.rol in ['admin', 'jefe_logistica', 'supervisor'] %}
+                                            (Faltante externo - No se fabrica)
+                                        {% else %}
+                                            (Avisar a Supervisor)
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                            
+                        {% endif %}
+
+                        <div style="flex: 2; display: flex; flex-direction: column; gap: 10px;">
+                            {% if t.picker and t.picker != current_user.username %}
+                                <div class="status-block">🚫 En preparación por: {{ t.picker }}</div>
+                            {% elif t.picker == current_user.username %}
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <a href="{{ url_for('despachos', sku=t.sku, cantidad_hoja=t.cantidad, lote_nombre=lote) }}" class="btn-action btn-primary" style="flex: 2;">▶️ Continuar Recolección</a>
+                                    
+                                    <a href="{{ url_for('soltar_tarea', tarea_id=t.id) }}" class="btn-action btn-secondary" style="flex: 1;"
+                                       onclick="return confirm('¿Seguro que quieres liberar este pedido para que lo haga otro?');">
+                                        🔓 Soltar
+                                    </a>
+                                </div>
+                                <small style="text-align: center; color: var(--success); font-weight: bold;">✅ Asignado a vos</small>
+                            {% else %}
+                                <a href="{{ url_for('agarrar_tarea', tarea_id=t.id) }}" class="btn-action" style="background: var(--accent); color: white;">Iniciar Recolección ➔</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% if current_user.rol in ['admin', 'jefe_logistica', 'supervisor'] %}
+                <div style="margin-top: 40px; background: #fef2f2; border: 2px dashed #fca5a5; border-radius: 16px; padding: 20px;">
+                    <h3 style="color: #b91c1c; margin-top: 0; text-align: center;">⚠️ Excepción: Despacho Incompleto</h3>
+                    <form action="{{ url_for('forzar_cierre_lote') }}" method="POST" onsubmit="return confirm('¿Estás seguro de liberar este transporte sin completar todos los productos? Esta acción quedará registrada.');">
+                        <input type="hidden" name="lote_id" value="{{ lote }}">
+                        
+                        <label style="font-weight: bold; color: #991b1b; font-size: 14px; margin-bottom: 5px; display: block;">Motivo de la excepción (Obligatorio):</label>
+                        <input type="text" name="observacion" placeholder="Ej: Camión lleno, falta de stock físico..." required autocomplete="off"
+                               style="width: 100%; padding: 12px; border: 2px solid #fca5a5; border-radius: 8px; margin-bottom: 15px; box-sizing: border-box; font-weight: bold; font-size: 15px;">
+                        
+                        <button type="submit" style="background:#ef4444; color:white; border:none; padding:15px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-size: 16px; transition: 0.2s;">
+                            Cerrar Lote a la Fuerza
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
+            {% else %}
+                <div class="empty-state">
+                    <h2 style="color: var(--success);">✅ Lote completado</h2>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // 1. Escudo Anti-Fantasma (Botón Atrás)
+        window.addEventListener("pageshow", function(event) {
+            if (event.persisted) window.location.reload();
+        });
+
+        function updateTimer() {
+            const el = document.getElementById('main-timer');
+            if (!el) return;
+        
+            const startStr = el.getAttribute('data-start');
+            if (!startStr || startStr.includes('None')) return;
+        
+            let cleanStr = startStr.replace('T', ' ').split('.')[0].replace(/-/g, '/');
+            let startTime = new Date(cleanStr).getTime();
+            let now = new Date().getTime();
+        
+            if (startTime > now) {
+                startTime = startTime - (3 * 60 * 60 * 1000); // Resta 3hs (Argentina)
+                if (startTime > now) startTime = now;
+            }
+        
+            let diff = Math.floor((now - startTime) / 1000);
+            if (isNaN(diff) || diff < 0) diff = 0; 
+        
+            const h = Math.floor(diff / 3600);
+            const m = Math.floor((diff % 3600) / 60);
+            const s = diff % 60;
+        
+            el.innerText = (h > 0 ? (h < 10 ? "0" + h : h) + ":" : "") + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+        }
+        setInterval(updateTimer, 1000); 
+        updateTimer();
+    </script>
+
+    <script>
+        function cambiarPrioridad(id) {
+            const input = document.getElementById('input_prio_' + id);
+            const btn = document.getElementById('btn_prio_' + id);
+        
+            if (input.value === 'Normal') {
+                input.value = 'Urgente';
+                btn.innerHTML = '🚨 URGENTE';
+                btn.style.background = '#dc3545';
+                btn.style.color = 'white';
+                btn.style.borderColor = '#dc3545';
+            
+            } else if (input.value === 'Urgente') {
+                input.value = 'Baja';
+                btn.innerHTML = '⚪ BAJA';
+                btn.style.background = '#6c757d';
+                btn.style.color = 'white';
+                btn.style.borderColor = '#6c757d';
+            
+            } else {
+                input.value = 'Normal';
+                btn.innerHTML = '🟢 NORMAL';
+                btn.style.background = '#e2e8f0';
+                btn.style.color = '#475569';
+                btn.style.borderColor = '#cbd5e1';
+            }
+        }
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const btn = this.querySelector('button[type="submit"]');
+                    if (btn) {
+                        if (this.dataset.submitted) {
+                            e.preventDefault(); 
+                            return;
+                        }
+                        this.dataset.submitted = true; 
+                        btn.innerHTML = '⏳ Procesando...';
+                        btn.style.opacity = '0.7';
+                        btn.style.cursor = 'not-allowed';
+                        btn.style.pointerEvents = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

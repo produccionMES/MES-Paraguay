@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS - Módulo Comercial</title>
+    <style>
+        /* (Mantenemos tus estilos anteriores que ya funcionan bien) */
+        html, body { max-width: 100vw; overflow-x: hidden; margin: 0; padding: 0; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; margin: 20px; color: #333; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: white; padding: 15px 20px; border-bottom: 3px solid #eab308; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-radius: 8px; }
+        .nav-links { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .btn-nav { text-decoration: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; font-size: 14px; color: white; transition: 0.3s; display: inline-flex; align-items: center; gap: 5px; }
+        
+        .flash-container { margin-bottom: 20px; }
+        .flash-msg { padding: 15px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .flash-msg.msg-error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .flash-msg.msg-success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+
+        .header-panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; border: 1px solid #e2e8f0; }
+        .btn-accion { background: #0d6efd; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-accion:hover { background: #0b5ed7; transform: translateY(-2px); }
+        
+        /* 🔥 PESTAÑAS (TABS) 🔥 */
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
+        .tab-button { padding: 12px 25px; cursor: pointer; border: none; background: none; font-weight: bold; color: #64748b; border-bottom: 3px solid transparent; transition: 0.3s; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        .tab-button:hover { color: #0d6efd; }
+        .tab-button.active { color: #0d6efd; border-bottom: 3px solid #0d6efd; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .badge-count { background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+        .tab-button.active .badge-count { background: #cfe2ff; color: #084298; }
+
+        /* CHIPS */
+        .chip { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; display: inline-block; }
+        .chip-abierto { background-color: #fff3cd; color: #856404; }
+        .chip-recibido { background-color: #e0cffc; color: #4b2c82; } /* Violeta como Posventa */
+        .chip-cerrado { background-color: #d1e7dd; color: #0f5132; }
+
+        /* TABLA */
+        .tabla-container { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow-x: auto; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1000px; }
+        th { background-color: #f8fafc; color: #475569; padding: 12px 10px; text-align: left; border-bottom: 2px solid #cbd5e1; }
+        td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+        .texto-secundario { color: #64748b; font-size: 11px; display: block; margin-top: 3px; }
+
+        /* MODAL */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(3px); overflow-y: auto; padding: 20px 0; }
+        .modal-form { background: white; padding: 30px; border-radius: 12px; width: 900px; max-width: 95%; position: relative; margin: auto; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group.full-width { grid-column: span 2; }
+        .form-label { font-weight: bold; font-size: 12px; color: #475569; text-transform: uppercase; }
+        .form-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; transition: 0.2s; }
+        
+        .radio-group { display: flex; gap: 10px; margin-top: 5px; }
+        .radio-group input[type="radio"] { display: none; }
+        .radio-chip { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background-color: #f8fafc; cursor: pointer; flex: 1; text-align: center; font-weight: bold; font-size: 13px; }
+        input[type="radio"]:checked + .radio-chip { border-color: #0d6efd; background-color: #eff6ff; color: #0d6efd; }
+        
+        .btn-cerrar-modal { position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 20px; cursor: pointer; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <div class="nav-links">
+            <h2 style="margin: 0; margin-right: 15px; color: #b38600;">💼 Gestión Comercial</h2>
+            <a href="{{ url_for('home') }}" class="btn-nav" style="background-color: #343a40;">🏠 Inicio</a>
+            <a href="{{ url_for('nomina_posventa', origen='comercial') }}" class="btn-nav" style="background-color: #343a40;">
+                📋 Nómina
+            </a>
+        </div>
+        <a href="{{ url_for('logout') }}" class="btn-nav" style="background-color: #dc3545;">🚪 Salir</a>
+    </div>
+
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash-msg {% if category == 'error' %}msg-error{% else %}msg-success{% endif %}">{{ message }}</div>
+            {% endfor %}
+          {%   endif %}
+        {% endwith %}
+    </div>
+
+    <div class="header-panel">
+        <form action="{{ url_for('comercial') }}" method="GET" style="display: flex; gap: 8px; flex-grow: 1; max-width: 600px;">
+            <input type="text" name="q" value="{{ q }}" placeholder="🔍 Buscar Ticket, Venta, Cliente o SKU..." class="form-input" style="flex-grow: 1;">
+            <button type="submit" class="btn-accion">Buscar</button>
+        </form>
+        <button class="btn-accion" onclick="document.getElementById('modalIncidencia').style.display='flex'">
+            <span>➕</span> Cargar Nueva Incidencia
+        </button>
+    </div>
+
+    <div class="carga-masiva-box" style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); border-left: 5px solid #8b5cf6;">
+        <div>
+            <h3 style="margin: 0 0 5px 0; color: #0f172a; font-size: 18px;">📦 Carga Masiva de Devoluciones</h3>
+            <p style="margin: 0 0 15px 0; font-size: 13px; color: #64748b;">Subí un archivo Excel con todas las incidencias juntas. El sistema las procesará y las dejará pendientes para Logística o Posventa.</p>
+            <a href="{{ url_for('descargar_plantilla_devoluciones') }}" style="font-size: 12px; color: #8b5cf6; text-decoration: none; font-weight: bold; background: #ede9fe; padding: 6px 12px; border-radius: 6px; display: inline-block; transition: 0.2s;">
+                📥 Descargar Plantilla Excel
+            </a>
+        </div>
+        <form action="{{ url_for('importar_devoluciones_masivas') }}" method="POST" enctype="multipart/form-data" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="file" name="archivo_devoluciones" accept=".xlsx, .xls" required style="font-size: 13px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; flex-grow: 1; background: #f8fafc;">
+            <button type="submit" style="background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 8px;">
+                🚀 Procesar Devoluciones
+            </button>
+        </form>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-button active" onclick="openTab(event, 'tab_pendientes')">
+            🚚 Pendientes de Recepción <span class="badge-count">{{ pendientes|length }}</span>
+        </button>
+        <button class="tab-button" onclick="openTab(event, 'tab_recibidos')">
+            📦 Recibido en Depósito <span class="badge-count">{{ recibidos|length }}</span>
+        </button>
+    </div>
+
+    <div id="tab_pendientes" class="tab-content active">
+        <div class="tabla-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticket / Ref.</th>
+                        <th>Tiempos</th>
+                        <th>Cliente / Facturación</th>
+                        <th>Producto</th>
+                        <th>Gestión</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inc in pendientes %}
+                    <tr>
+                        <td><strong>{{ inc.numero_reclamo }}</strong><span class="texto-secundario">Venta: {{ inc.numero_venta }}</span></td>
+                        <td>
+                            {% if inc.fecha_reclamo %}
+                                {% set dias = (datetime.now().date() - inc.fecha_reclamo).days %}
+                                <span style="font-weight: bold;">{{ inc.fecha_reclamo.strftime('%d/%m/%Y') }}</span>
+                                {% if dias > 15 %}<span class="chip" style="background:#fee2e2; color:#991b1b; display:block; margin-top:5px;">⚠️ Demorado ({{ dias }}d)</span>
+                                {% else %}<span class="texto-secundario">{{ dias }} días en curso</span>{% endif %}
+                            {% endif %}
+                        </td>
+                        <td>{{ inc.nombre_cliente }}<span class="texto-secundario">Facturado: <strong>{{ inc.facturacion }}</strong></span></td>
+                        <td><span style="color:#0f5132; font-weight:bold;">{{ inc.sku }} (x{{ inc.cantidad }})</span><span class="texto-secundario">{{ inc.producto }}</span></td>
+                        <td><span class="chip chip-recibido" style="background:#f1f5f9; color:#475569;">{{ inc.tipo_gestion }}</span></td>
+                        <td><span class="chip chip-abierto">⌛ PENDIENTE</span></td>
+                        <td><button style="background:white; border:1px solid #cbd5e1; padding:5px 10px; border-radius:4px; font-size:11px; cursor:pointer;">Ver Detalle</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="tab_recibidos" class="tab-content">
+        <div class="tabla-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticket / Ref.</th>
+                        <th>Fecha de Recepción</th>
+                        <th>Cliente</th>
+                        <th>Producto</th>
+                        <th>Gestión</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inc in recibidos %}
+                    <tr>
+                        <td><strong>{{ inc.numero_reclamo }}</strong></td>
+                        <td>
+                            <span style="font-weight: bold; color: #6f42c1;">INGRESADO</span>
+                            <span class="texto-secundario">Ticket del: {{ inc.fecha_reclamo.strftime('%d/%m/%Y') if inc.fecha_reclamo else 'S/D' }}</span>
+                        </td>
+                        <td>{{ inc.nombre_cliente }}</td>
+                        <td><strong>{{ inc.sku }}</strong></td>
+                        <td>{{ inc.tipo_gestion }}</td>
+                        <td>
+                            {% if inc.estado == 'Recibido en Posventa' %}
+                                <span class="chip chip-recibido">✅ RECIBIDO EN PV</span>
+                            {% else %}
+                                <span class="chip chip-cerrado">🏁 {{ inc.estado|upper }}</span>
+                            {% endif %}
+                        </td>
+                        <td><button style="background:white; border:1px solid #cbd5e1; padding:5px 10px; border-radius:4px; font-size:11px; cursor:pointer;">Ver Detalle</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modalIncidencia" class="modal-overlay">
+        <div class="modal-form">
+            <button class="btn-cerrar-modal" onclick="document.getElementById('modalIncidencia').style.display='none'">✖</button>
+            <h2 style="margin-top: 0; color: #0d6efd; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px;">📝 Cargar Nueva Incidencia</h2>
+            <form action="{{ url_for('nueva_incidencia') }}" method="POST">
+                <div class="form-grid">
+                    <div class="form-group full-width"><label class="form-label">Nº de Venta Original</label><input type="text" name="numero_venta" class="form-input" required placeholder="Ej: VEN-89412"></div>
+                    <div class="form-group"><label class="form-label">Empresa</label><input type="text" name="compra_empresa" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">Quién Reporta</label><input type="text" name="quien_reporta" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">Fecha Compra</label><input type="date" name="fecha_compra" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Fecha Reclamo</label><input type="date" name="fecha_reclamo" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Nombre Cliente</label><input type="text" name="nombre_cliente" class="form-input" required></div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">¿Está Facturado? <span style="color:#64748b; font-size:10px; text-transform:none;">(Opcional)</span></label>
+                        <div class="radio-group">
+                            <input type="radio" id="fact_si" name="facturacion" value="Sí"><label for="fact_si" class="radio-chip">Sí</label>
+                            <input type="radio" id="fact_no" name="facturacion" value="No"><label for="fact_no" class="radio-chip">No</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group full-width"><label class="form-label">Lugar de Entrega <span style="color:#64748b; font-size:10px; text-transform:none;">(Opcional)</span></label><input type="text" name="lugar_entrega" class="form-input" placeholder="Opcional"></div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">SKU</label>
+                        <input type="text" id="input_sku" name="sku" class="form-input" list="lista_skus" required autocomplete="off" placeholder="Escribí para buscar SKU...">
+                        <datalist id="lista_skus"></datalist>
+                    </div>
+
+                    <div class="form-group"><label class="form-label">Cantidad</label><input type="number" name="cantidad" class="form-input" value="1"></div>
+                    
+                    <div class="form-group full-width">
+                        <label class="form-label">Descripción Producto</label>
+                        <input type="text" id="input_producto" name="producto" class="form-input" list="lista_descripciones" required autocomplete="off" placeholder="Escribí para buscar por nombre...">
+                        <datalist id="lista_descripciones"></datalist>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Condición</label>
+                        <div class="radio-group">
+                            <input type="radio" id="c_apto" name="condicion" value="Apto" required><label for="c_apto" class="radio-chip">✅ Apto</label>
+                            <input type="radio" id="c_no" name="condicion" value="No Apto"><label for="c_no" class="radio-chip">❌ No Apto</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label class="form-label">Gestión Esperada</label>
+                        <div class="radio-group">
+                            <input type="radio" id="g_c" name="tipo_gestion" value="Cambio" required><label for="g_c" class="radio-chip">🔄 Cambio</label>
+                            <input type="radio" id="g_d" name="tipo_gestion" value="Devolución"><label for="g_d" class="radio-chip">💵 Devolución</label>
+                            <input type="radio" id="g_s" name="tipo_gestion" value="Servicio Técnico"><label for="g_s" class="radio-chip">🔧 Servicio Técnico</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group full-width"><label class="form-label">Motivo</label><textarea name="motivo_devolucion" class="form-input" rows="2" required></textarea></div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                    <button type="button" onclick="document.getElementById('modalIncidencia').style.display='none'" style="padding:10px 20px; border:1px solid #ccc; background:none; border-radius:6px; cursor:pointer;">Cancelar</button>
+                    <button type="submit" style="padding:10px 30px; border:none; background:#0d6efd; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">Guardar Incidencia</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; tabcontent[i].classList.remove("active"); }
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) { tablinks[i].classList.remove("active"); }
+            document.getElementById(tabName).style.display = "block";
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+        // 🔥 MOTOR DE BÚSQUEDA ULTRA RÁPIDO 🔥
+        const catalogoPorSku = {};
+        const catalogoPorDesc = {};
+        const listaProductos = [];
+
+        // Cargamos los datos en la memoria
+        {% for prod in productos %}
+            {% set desc_limpia = prod.descripcion | replace('\"', '') | replace('\n', '') | replace('\r', '') %}
+            catalogoPorSku["{{ prod.sku }}"] = "{{ desc_limpia }}";
+            catalogoPorDesc["{{ desc_limpia }}"] = "{{ prod.sku }}";
+            listaProductos.push({ sku: "{{ prod.sku }}", desc: "{{ desc_limpia }}" });
+        {% endfor %}
+
+        const inputSku = document.getElementById('input_sku');
+        const inputDesc = document.getElementById('input_producto');
+        const datalistSku = document.getElementById('lista_skus');
+        const datalistDesc = document.getElementById('lista_descripciones');
+
+        // Función para actualizar las listas desplegables solo con 20 resultados
+        function actualizarDatalist(inputVal, tipo) {
+            const val = inputVal.toLowerCase();
+            const datalist = tipo === 'sku' ? datalistSku : datalistDesc;
+            
+            datalist.innerHTML = ''; 
+            if (val.length < 2) return; // Mínimo 2 letras para empezar a sugerir
+
+            let fragment = document.createDocumentFragment();
+            let count = 0;
+
+            for (let i = 0; i < listaProductos.length; i++) {
+                const p = listaProductos[i];
+                const matchSku = p.sku.toLowerCase().includes(val);
+                const matchDesc = p.desc.toLowerCase().includes(val);
+
+                if (matchSku || matchDesc) {
+                    let opt = document.createElement('option');
+                    if (tipo === 'sku') {
+                        opt.value = p.sku;
+                        opt.text = p.desc;
+                    } else {
+                        opt.value = p.desc;
+                        opt.text = p.sku;
+                    }
+                    fragment.appendChild(opt);
+                    count++;
+                    if (count >= 20) break; // Límite de 20 para velocidad total
+                }
+            }
+            datalist.appendChild(fragment);
+        }
+
+        // Escuchador SKU (Ida)
+        let timeoutSku;
+        inputSku.addEventListener('input', function() {
+            const val = this.value;
+            
+            // Si hay coincidencia exacta, pintamos de verde y autocompletamos el otro
+            if (catalogoPorSku[val]) {
+                inputDesc.value = catalogoPorSku[val];
+                inputDesc.style.backgroundColor = '#f0fdf4';
+                inputDesc.style.borderColor = '#198754';
+                this.style.borderColor = '#198754';
+            } else {
+                inputDesc.style.backgroundColor = '#ffffff';
+                inputDesc.style.borderColor = '#cbd5e1';
+                this.style.borderColor = '#cbd5e1';
+            }
+
+            // Filtrado con retraso de 150ms para que no se trabe el teclado
+            clearTimeout(timeoutSku);
+            timeoutSku = setTimeout(() => actualizarDatalist(val, 'sku'), 150);
+        });
+
+        // Escuchador Descripción (Vuelta)
+        let timeoutDesc;
+        inputDesc.addEventListener('input', function() {
+            const val = this.value;
+            
+            if (catalogoPorDesc[val]) {
+                inputSku.value = catalogoPorDesc[val];
+                inputSku.style.backgroundColor = '#f0fdf4';
+                inputSku.style.borderColor = '#198754';
+                this.style.borderColor = '#198754';
+            } else {
+                inputSku.style.backgroundColor = '#ffffff';
+                inputSku.style.borderColor = '#cbd5e1';
+                this.style.borderColor = '#cbd5e1';
+            }
+
+            clearTimeout(timeoutDesc);
+            timeoutDesc = setTimeout(() => actualizarDatalist(val, 'desc'), 150);
+        });
+    </script>
+</body>
+</html>
