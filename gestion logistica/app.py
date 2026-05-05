@@ -39,11 +39,10 @@ os.makedirs(app.config['CARPETA_TEMP'], exist_ok=True)
 
 
 # --- CONFIGURACIÓN DE BASE DE DATOS (INTELIGENTE) ---
-# Si existe la variable DATABASE_URL (en Render), la usa. Si no (en tu PC), usa SQLite.
+
 if os.environ.get('DATABASE_URL'):
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
     
-    # 🔥 EL ANTÍDOTO DEFINITIVO PARA EL ERROR "Packet sequence number wrong"
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_recycle': 280,
         'pool_pre_ping': True
@@ -51,6 +50,9 @@ if os.environ.get('DATABASE_URL'):
 else:
     # --- MODO LOCAL (TU COMPUTADORA) ---
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+
+# 🔥 ESTA ES LA LÍNEA QUE FALTABA AGREGAR 🔥
+db = SQLAlchemy(app)
 
 def hora_argentina():
     return datetime.now(ZoneInfo('America/Argentina/Buenos_Aires'))
