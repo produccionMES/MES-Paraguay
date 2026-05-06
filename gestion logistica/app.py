@@ -6128,7 +6128,7 @@ def mover_zona_rapida(item_id):
     flash(f"⚡ {cantidad_mover} unidades transferidas exitosamente a {destino_txt}.", "success")
     return redirect(request.referrer)
 
-@app.route('/importar_productos', methods=['POST'])
+@@app.route('/importar_productos', methods=['POST'])
 @login_required
 def importar_productos():
     # 🔥 CANDADO DE SEGURIDAD
@@ -6136,24 +6136,25 @@ def importar_productos():
         flash("🚫 Acceso denegado: No tienes permisos para modificar la nómina maestra.", "error")
         return redirect(request.referrer)
     
-    archivo = request.files.get('archivo_csv') # En el HTML se llama así el input, no importa que sea Excel
+    archivo = request.files.get('archivo_csv')
     if not archivo or archivo.filename == '':
         flash('❌ No se seleccionó ningún archivo.', 'error')
         return redirect(request.referrer)
 
     try:
         import pandas as pd
-        # Leemos el Excel
+        # Leemos el Excel y limpiamos celdas vacías para evitar errores
         df = pd.read_excel(archivo)
+        df = df.fillna('')
         
-        # Limpiamos los nombres de las columnas para que el sistema las encuentre fácil
+        # Limpiamos los nombres de las columnas
         cols = {str(c).strip().lower().replace(' ', '').replace('_', '').replace('(', '').replace(')', ''): c for c in df.columns}
         
         def get_val(fila, posibles_nombres, default=""):
             for nombre in posibles_nombres:
                 if nombre in cols:
                     val = fila.get(cols[nombre])
-                    if pd.notna(val):
+                    if pd.notna(val) and str(val).strip() != '':
                         return str(val).strip()
             return default
 
@@ -6162,16 +6163,15 @@ def importar_productos():
             try: return float(val_str) if '.' in val_str else int(val_str)
             except: return default
 
-        productos_agregados = 0
-        productos_actualizados = 0
-        
-        # 🔥 NUEVOS CONTADORES PARA LOS LOTES
-        procesados = 0 
-        batch_size = 50 
-
-        # Pre-cargamos la nómina para hacer las búsquedas rapidísimo
+        # Pre-cargamos la nómina
         todos_los_productos_log = Producto.query.filter_by(sector='logistica').all()
         diccionario_sku = {p.sku.upper(): p for p in todos_los_productos_log}
+
+        # =========================================================
+        # 🔥 ACÁ EMPIEZA LA MAGIA: CAJAS DE ENVÍO MASIVO (BULK)
+        # =========================================================
+        nuevos_productos_lista = []
+        productos_a_actualizar_lista = []
 
         for index, row in df.iterrows():
             sku = get_val(row, ['sku', 'codigo']).upper()
@@ -6180,7 +6180,7 @@ def importar_productos():
             if not sku or not desc:
                 continue # Saltamos filas vacías
 
-            # Capturamos todos los datos nuevos
+            # Capturamos datos
             empresa_val = get_val(row, ['empresa', 'marca'])
             ean_val = get_val(row, ['ean', 'codigodebarras'])
             familia_val = get_val(row, ['familia', 'categoria'])
@@ -6192,58 +6192,52 @@ def importar_productos():
             pisos_x_pallet_val = get_num(row, ['pisosxpallet', 'pxpallet'])
             bultos_x_pallet_val = get_num(row, ['bultosxpallet', 'bxpallet'])
 
-            # Limpiamos el EAN si viene con formato científico (ej: 7.79E+12)
             if ean_val.endswith('.0'): ean_val = ean_val[:-2]
 
-            # ¿Existe el producto?
+            # Armamos el "paquete" de datos de esta fila
+            datos_fila = {
+                'sku': sku,
+                'descripcion': desc,
+                'sector': 'logistica',
+                'empresa': empresa_val,
+                'ean': ean_val,
+                'familia': familia_val,
+                'alto_cm': alto_val,
+                'ancho_cm': ancho_val,
+                'profundidad_cm': prof_val,
+                'unidades_x_bulto': un_x_bulto_val,
+                'bultos_x_piso': bultos_x_piso_val,
+                'pisos_x_pallet': pisos_x_pallet_val,
+                'bultos_x_pallet': bultos_x_pallet_val
+            }
+
             if sku in diccionario_sku:
                 prod = diccionario_sku[sku]
-                # Actualizamos TODO
-                prod.descripcion = desc
-                prod.empresa = empresa_val
-                prod.ean = ean_val if ean_val else prod.ean
-                prod.familia = familia_val
-                prod.alto_cm = alto_val
-                prod.ancho_cm = ancho_val
-                prod.profundidad_cm = prof_val
-                prod.unidades_x_bulto = un_x_bulto_val
-                prod.bultos_x_piso = bultos_x_piso_val
-                prod.pisos_x_pallet = pisos_x_pallet_val
-                prod.bultos_x_pallet = bultos_x_pallet_val
-                
-                productos_actualizados += 1
+                # Le pasamos el ID para que la DB sepa a quién actualizar
+                datos_fila['id'] = prod.id 
+                # Preservamos el EAN viejo si en el Excel nuevo vino vacío
+                if not ean_val and prod.ean:
+                    datos_fila['ean'] = prod.ean
+                    
+                productos_a_actualizar_lista.append(datos_fila)
             else:
-                # Lo creamos de cero
-                nuevo_prod = Producto(
-                    sku=sku, descripcion=desc, sector='logistica',
-                    empresa=empresa_val, ean=ean_val, familia=familia_val,
-                    alto_cm=alto_val, ancho_cm=ancho_val, profundidad_cm=prof_val,
-                    unidades_x_bulto=un_x_bulto_val, bultos_x_piso=bultos_x_piso_val,
-                    pisos_x_pallet=pisos_x_pallet_val, bultos_x_pallet=bultos_x_pallet_val
-                )
-                db.session.add(nuevo_prod)
-                diccionario_sku[sku] = nuevo_prod
-                productos_agregados += 1
-                
-            # 🔥 SUMAMOS 1 AL CONTADOR
-            procesados += 1
-            
-            # 🔥 MAGIA ACÁ: CADA 50 PRODUCTOS GUARDAMOS Y RESPIRAMOS
-            if procesados % batch_size == 0:
-                try:
-                    db.session.commit()
-                except Exception as e:
-                    db.session.rollback()
-                    flash(f'❌ Error guardando lote en la fila {index}: {str(e)}', 'error')
-                    return redirect(request.referrer)
+                nuevos_productos_lista.append(datos_fila)
 
-        # 🔥 AL FINAL, GUARDAMOS LO QUE HAYA QUEDADO PENDIENTE
+        # =========================================================
+        # 🔥 EL ENVIÓ TURBO (1 solo viaje a la base de datos)
+        # =========================================================
+        if nuevos_productos_lista:
+            db.session.bulk_insert_mappings(Producto, nuevos_productos_lista)
+        
+        if productos_a_actualizar_lista:
+            db.session.bulk_update_mappings(Producto, productos_a_actualizar_lista)
+
         db.session.commit()
-        flash(f'✅ Catálogo Logística actualizado mediante Excel: {productos_agregados} nuevos, {productos_actualizados} actualizados.', 'success')
+        flash(f'✅ Catálogo actualizado a velocidad turbo: {len(nuevos_productos_lista)} nuevos, {len(productos_a_actualizar_lista)} actualizados.', 'success')
 
     except Exception as e:
         db.session.rollback()
-        flash(f'❌ Error crítico al importar Excel: {str(e)}', 'error')
+        flash(f'❌ Error al importar: {str(e)}', 'error')
 
     return redirect(request.referrer)
 
