@@ -6,3 +6,4 @@ pandas
 openpyxl
 gunicorn
 werkzeug
+cryptography
