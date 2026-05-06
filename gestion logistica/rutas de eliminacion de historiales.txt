@@ -1,0 +1,2 @@
+@app.route('/borrar_ventas_total') - elimina las cargas de las venbtas
+@app.route('/admin/vaciar_pedidos_cargados', methods=['GET', 'POST']) - elimina los pedidos cargados en el modulo de ventas

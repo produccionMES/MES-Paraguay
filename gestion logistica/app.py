@@ -8573,7 +8573,7 @@ def exportar_ventas():
         flash("🚫 Acceso denegado.", "error")
         return redirect(request.referrer or url_for('home'))
 
-    # 1. Atrapamos los nuevos filtros que haya puesto el usuario
+    # 1. Atrapamos los filtros actuales
     q_sku = request.args.get('q_sku', '').strip().upper()
     q_desc = request.args.get('q_desc', '').strip().upper()
     q_fecha_desde = request.args.get('q_fecha_desde', '').strip()
@@ -8583,13 +8583,11 @@ def exportar_ventas():
     # 2. Armamos la consulta base
     query_mov = DetalleVenta.query.join(RegistroVenta)
 
-    # 🔥 Aplicamos el filtro de año si NO estamos en la solapa de Historial (0)
     if anio_filtro != 0:
         inicio_anio = datetime(anio_filtro, 1, 1).date()
         fin_anio = datetime(anio_filtro, 12, 31).date()
         query_mov = query_mov.filter(RegistroVenta.fecha_venta >= inicio_anio, RegistroVenta.fecha_venta <= fin_anio)
 
-    # Aplicamos los filtros de texto y fechas exactas si existen
     if q_sku:
         query_mov = query_mov.filter(DetalleVenta.sku.ilike(f"%{q_sku}%"))
     if q_desc:
@@ -8599,33 +8597,44 @@ def exportar_ventas():
     if q_fecha_hasta:
         query_mov = query_mov.filter(func.date(RegistroVenta.fecha_venta) <= q_fecha_hasta)
 
-    # 3. Traemos TODAS las ventas que coincidan (sin paginación)
     movimientos = query_mov.order_by(RegistroVenta.fecha_venta.desc(), RegistroVenta.id.desc()).all()
 
     if not movimientos:
         flash("⚠️ No hay datos para exportar con estos filtros.", "info")
         return redirect(request.referrer)
 
-    # 4. Preparamos los datos para el Excel
+    # 3. Preparamos los datos para el Excel con el extractor de medidas
     data = []
     for item in movimientos:
+        desc_limpia = item.descripcion.upper()
+        ancho = "-"
+        alto = "-"
+        
+        # 🔍 EXTRACTOR INTELIGENTE: Busca patrones como "120X150" o "120.5 x 150"
+        match = re.search(r'(\d+(?:[\.,]\d+)?)\s*[X]\s*(\d+(?:[\.,]\d+)?)', desc_limpia)
+        if match:
+            ancho = match.group(1).replace(',', '.')
+            alto = match.group(2).replace(',', '.')
+
         data.append({
             'Fecha': item.venta.fecha_venta.strftime('%d/%m/%Y'),
             'Comprobante': item.venta.nro_comprobante,
             'Canal': item.venta.canal,
             'SKU': item.sku,
             'Descripción': item.descripcion,
+            'Ancho (cm)': ancho,  # 🔥 COLUMNA NUEVA
+            'Alto (cm)': alto,    # 🔥 COLUMNA NUEVA
             'Cantidad': item.cantidad
         })
 
-    # 5. Generamos el archivo mágico
+    # 4. Generamos el archivo Excel
     df = pd.DataFrame(data)
     output = io.BytesIO()
     
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Reporte de Ventas')
         
-        # Le damos un ancho lindo a las columnas para que no quede todo apretado
+        # Ajuste de diseño
         worksheet = writer.sheets['Reporte de Ventas']
         for col in worksheet.columns:
             max_length = 0
@@ -8644,7 +8653,7 @@ def exportar_ventas():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'Reporte_Ventas_{fecha_hoy}.xlsx'
+        download_name=f'Reporte_Ventas_Detallado_{fecha_hoy}.xlsx'
     )
 
 from datetime import timedelta
@@ -9118,8 +9127,37 @@ def carga_pedidos():
             )
             db.session.add(nueva_tarea)
 
+        # ====================================================================
+        # 🔥 LA MAGIA ESTÁ ACÁ: INYECCIÓN AL MÓDULO DE ANÁLISIS DE VENTAS 🔥
+        # ====================================================================
+        db.session.flush() # Obligamos a la base de datos a darnos el ID del nuevo_pedido
+        
+        # Le inventamos un número de comprobante único para que quede prolijo
+        comprobante_automatico = f"MANUAL-{nuevo_pedido.id}-{hora_argentina().strftime('%d%m')}"
+        
+        nueva_venta = RegistroVenta(
+            nro_comprobante=comprobante_automatico,
+            fecha_venta=hora_argentina().date(), # Toma la fecha exacta de HOY (Paraguay)
+            cliente=cliente,
+            canal="Venta", # Para que en los gráficos lo puedas distinguir de MercadoLibre
+            total_venta=0.0
+        )
+        db.session.add(nueva_venta)
+        db.session.flush()
+        
+        detalle_venta = DetalleVenta(
+            venta_id=nueva_venta.id,
+            sku=nuevo_pedido.sku,
+            descripcion=nuevo_pedido.descripcion,
+            cantidad=nuevo_pedido.cantidad,
+            precio_unitario=0.0,
+            subtotal=0.0
+        )
+        db.session.add(detalle_venta)
+        # ====================================================================
+
         db.session.commit()
-        flash(f"✅ Pedido para {destino.upper()} cargado con éxito.", "success")
+        flash(f"✅ Pedido para {destino.upper()} cargado con éxito y registrado en Análisis de Ventas.", "success")
         return redirect(url_for('carga_pedidos'))
         
     pedidos_recientes = PedidoCliente.query.order_by(PedidoCliente.id.desc()).limit(15).all()
