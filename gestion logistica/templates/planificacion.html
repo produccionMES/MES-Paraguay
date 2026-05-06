@@ -636,5 +636,52 @@
             form.submit();
         }
     </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Atrapamos todos los formularios de "Planificar Pedido"
+        const formularios = document.querySelectorAll('form[action^="/planificar_pedido_cliente/"]');
+    
+        formularios.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                // 🔥 FRENAMOS LA RECARGA DE LA PÁGINA
+                e.preventDefault(); 
+            
+                // Ponemos el botón en "Cargando..." para que el usuario sepa que hizo clic
+                const boton = form.querySelector('button[type="submit"]');
+                const textoOriginal = boton.innerHTML;
+                boton.innerHTML = '⏳ Enviando...'; 
+                boton.disabled = true;
+            
+                // 2. Mandamos los datos "por atrás"
+                fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form) // Agarra la fecha y prioridad que elegiste
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        // 3. EFECTO VISUAL: Ocultamos el renglón del pedido suavemente
+                        // Busca el 'tr' (fila de la tabla) o 'div' padre que envuelve al pedido
+                        const fila = form.closest('tr') || form.closest('.card'); 
+                        if (fila) {
+                            fila.style.transition = "all 0.5s";
+                            fila.style.opacity = "0";
+                            setTimeout(() => fila.remove(), 500); // Lo borra de la vista en medio segundo
+                        }
+                    } else {
+                        alert("Hubo un error al planificar.");
+                        boton.innerHTML = textoOriginal;
+                        boton.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    boton.innerHTML = textoOriginal;
+                    boton.disabled = false;
+                });
+            });
+        });
+    });
+    </script>
 </body>
 </html>

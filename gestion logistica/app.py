@@ -9171,14 +9171,12 @@ def carga_pedidos():
 def planificar_pedido_cliente(pedido_id):
     pedido = PedidoCliente.query.get_or_404(pedido_id)
     
-    # 🔥 ATRAPAMOS LA FECHA ELEGIDA 🔥
     fecha_str = request.form.get('fecha_planificada')
     if fecha_str:
         fecha_plan = datetime.strptime(fecha_str, '%Y-%m-%d').date()
     else:
         fecha_plan = datetime.now().date()
         
-    # 🔥 LA SOLUCIÓN: Atrapamos la prioridad que elijas en pantalla. Si no mandás nada, por defecto es Normal.
     prioridad_elegida = request.form.get('prioridad', 'Normal')
     
     nueva_orden = OrdenProduccion(
@@ -9186,7 +9184,7 @@ def planificar_pedido_cliente(pedido_id):
         descripcion=f"[Cliente: {pedido.cliente}] {pedido.descripcion}",
         cantidad=pedido.cantidad,
         estado='Pendiente',
-        prioridad=prioridad_elegida, # 🔥 Se terminó la dictadura del 'Urgente' automático
+        prioridad=prioridad_elegida, 
         origen_pedido='Ventas',
         lote_referencia=f"PED-{pedido.id}",
         fecha_planificada=fecha_plan
@@ -9195,8 +9193,11 @@ def planificar_pedido_cliente(pedido_id):
     pedido.estado = 'Planificado' 
     db.session.commit()
     
-    flash(f"Pedido de {pedido.cliente} programado para el {fecha_plan.strftime('%d/%m')}.", "success")
-    return redirect(url_for('planificacion'))
+    # 🔥 EL FIX MAGISTRAL: Respondemos de forma "invisible"
+    return jsonify({
+        'status': 'success',
+        'mensaje': f'Pedido de {pedido.cliente} programado.'
+    })
 
 @app.route('/admin/vaciar_pedidos_cargados', methods=['GET', 'POST'])
 @login_required
