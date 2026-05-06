@@ -10427,6 +10427,16 @@ def reparar_receta():
         </div>
     """
 
+@app.route('/estirar_roles')
+def estirar_roles():
+    try:
+        from sqlalchemy import text
+        db.session.execute(text("ALTER TABLE usuario MODIFY COLUMN rol VARCHAR(100)"))
+        db.session.commit()
+        return "<h1>✅ ¡Éxito!</h1><p>La columna de roles ahora soporta hasta 100 letras. Ya podés crear al supervisor.</p>"
+    except Exception as e:
+        return f"<h1>⚠️ Aviso</h1><p>Hubo un problema o ya estaba arreglado: {str(e)}</p>"
+
 if __name__ == '__main__':
     print("Iniciando WMS Profesional en puerto 5001...")
     with app.app_context():
