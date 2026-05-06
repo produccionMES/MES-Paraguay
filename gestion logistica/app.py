@@ -8042,22 +8042,24 @@ def ingenieria():
         flash("🚫 Acceso denegado al módulo de Ingeniería.", "error")
         return redirect(url_for('home'))
 
-    # Capturamos búsqueda y página
-    q = request.args.get('q', '').strip().upper()
+    # 🔍 1. Capturamos la búsqueda (Sin forzar .upper() aquí)
+    q = request.args.get('q', '').strip()
     page = request.args.get('page', 1, type=int)
 
-    # Filtramos: Solo productos de logística (terminados) y evitamos subdivisiones vacías
     query = Producto.query.filter(
         Producto.sector == 'logistica', 
         Producto.sku != 'SUBDIVISION_VACIA'
     )
 
-    # Si hay búsqueda, filtramos en la base de datos (mucho más rápido que JS)
+    # 🔥 2. LA SOLUCIÓN: Usamos func.lower para ignorar mayúsculas/minúsculas
     if q:
-        search = f"%{q}%"
-        query = query.filter(db.or_(Producto.sku.ilike(search), Producto.descripcion.ilike(search)))
+        search = f"%{q.lower()}%"
+        query = query.filter(db.or_(
+            func.lower(Producto.sku).like(search),
+            func.lower(Producto.descripcion).like(search)
+        ))
 
-    # Aplicamos paginación: 20 por página
+    # El resto de la función (pagination, render_template) queda igual...
     pagination = query.order_by(Producto.sku.asc()).paginate(page=page, per_page=20, error_out=False)
     
     return render_template('ingenieria.html', 
