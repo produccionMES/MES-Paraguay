@@ -261,7 +261,7 @@
                     {% endif %}
                     
                     <div class="card-orden {% if orden.estado == 'En Proceso' %}en-proceso{% elif orden.estado == 'Finalizado' %}finalizado{% else %}pendiente{% endif %}"
-                         style="{% if es_futura %}opacity: 0.6; filter: grayscale(1); background: #f1f5f9; border-top: 5px solid #cbd5e1 !important; pointer-events: none;{% endif %}">
+                         style="{% if es_futura %}opacity: 0.6; filter: grayscale(1); background: #f1f5f9; border-top: 5px solid #cbd5e1 !important;{% endif %}">
                         
                         <div style="margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -301,11 +301,26 @@
                                 <p style="margin: 5px 0 10px 0; color: #475569; font-size: 14px; font-weight: 500;">{{ orden.descripcion }}</p>
                                 
                                 {% if orden.fecha_planificada %}
-                                <div style="margin-bottom: 8px;">
-                                    <span style="background: #fef08a; color: #854d0e; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fde047;">
-                                        🗓️ Fabricar el: {{ orden.fecha_planificada.strftime('%d/%m/%Y') }}
+                                <div style="margin-bottom: 8px; display: inline-flex; align-items: center; background: #fef08a; padding: 4px 8px; border-radius: 4px; border: 1px solid #fde047; gap: 5px;">
+                                    <span style="color: #854d0e; font-size: 11px; font-weight: bold;">
+                                        🗓️ Fabricar el:
                                     </span>
+                                    
+                                    {% if current_user.rol in ['admin', 'supervisor', 'jefe_produccion'] %}
+                                        <form onsubmit="reprogramarFecha(event, {{ orden.id }})" style="display: flex; align-items: center; gap: 5px; margin: 0;">
+                                            <input type="date" id="fecha_orden_{{ orden.id }}" value="{{ orden.fecha_planificada }}" 
+                                                   style="padding: 2px 4px; border-radius: 4px; border: 1px solid #ca8a04; font-size: 11px; font-weight: bold; color: #854d0e; background: transparent; outline: none; width: auto; min-width: 100px;">
+                                            <button type="submit" style="background: #eab308; color: white; border: none; border-radius: 4px; cursor: pointer; padding: 2px 6px; font-size: 10px; transition: 0.2s;" title="Guardar nueva fecha">
+                                                ✏️
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span style="color: #854d0e; font-size: 11px; font-weight: bold;">
+                                            {{ orden.fecha_planificada.strftime('%d/%m/%Y') }}
+                                        </span>
+                                    {% endif %}
                                 </div>
+                                <br>
                                 {% endif %}
 
                                 <div class="lote-badge">Ref: {{ orden.lote_referencia }}</div>
@@ -885,6 +900,49 @@
                     tbody.innerHTML = `<tr><td colspan="4" style="color: red; text-align: center; padding: 20px;">❌ Error de conexión. Revisá que el servidor esté encendido.</td></tr>`;
                     console.error('Error:', error);
                 });
+        }
+
+        // 🔥 LÁPIZ MÁGICO PARA REPROGRAMAR FECHA 🔥
+        function reprogramarFecha(e, ordenId) {
+            e.preventDefault(); 
+            
+            const boton = e.target.querySelector('button');
+            const inputFecha = document.getElementById('fecha_orden_' + ordenId).value;
+            
+            const iconoOriginal = boton.innerHTML;
+            boton.innerHTML = '⏳';
+            boton.disabled = true;
+
+            const formData = new FormData();
+            formData.append('orden_id', ordenId);
+            formData.append('nueva_fecha', inputFecha);
+
+            fetch('/reprogramar_orden', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    boton.innerHTML = '✅';
+                    boton.style.background = '#10b981';
+                    setTimeout(() => {
+                        boton.innerHTML = iconoOriginal;
+                        boton.style.background = '#eab308';
+                        boton.disabled = false;
+                        sincronizarTableroInmediato(); // Recargamos para que quite el cartel de "Esperando fecha" si la pasaron a hoy
+                    }, 1500);
+                } else {
+                    alert('⚠️ Error: ' + data.mensaje);
+                    boton.innerHTML = iconoOriginal;
+                    boton.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                boton.innerHTML = iconoOriginal;
+                boton.disabled = false;
+            });
         }
     </script>
 </body>

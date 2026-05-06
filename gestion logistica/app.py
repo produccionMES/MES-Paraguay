@@ -10491,6 +10491,32 @@ def estirar_roles():
     except Exception as e:
         return f"<h1>⚠️ Aviso</h1><p>Hubo un problema o ya estaba arreglado: {str(e)}</p>"
 
+@app.route('/reprogramar_orden', methods=['POST'])
+@login_required
+def reprogramar_orden():
+    # 🔥 CANDADO DE SEGURIDAD: Solo los jefes
+    if current_user.rol not in ['admin', 'supervisor', 'jefe_produccion']:
+        return jsonify({'status': 'error', 'mensaje': 'No tenés permisos para cambiar fechas.'})
+
+    orden_id = request.form.get('orden_id')
+    nueva_fecha_str = request.form.get('nueva_fecha')
+
+    if not orden_id or not nueva_fecha_str:
+        return jsonify({'status': 'error', 'mensaje': 'Faltan datos.'})
+
+    try:
+        orden = OrdenProduccion.query.get(orden_id)
+        if orden:
+            # Convertimos el texto a formato fecha y lo guardamos
+            orden.fecha_planificada = datetime.strptime(nueva_fecha_str, '%Y-%m-%d').date()
+            db.session.commit()
+            return jsonify({'status': 'success', 'mensaje': 'Fecha actualizada correctamente.'})
+        else:
+            return jsonify({'status': 'error', 'mensaje': 'Orden no encontrada.'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'mensaje': str(e)})
+
 if __name__ == '__main__':
     print("Iniciando WMS Profesional en puerto 5001...")
     with app.app_context():
