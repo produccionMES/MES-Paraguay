@@ -6164,6 +6164,10 @@ def importar_productos():
 
         productos_agregados = 0
         productos_actualizados = 0
+        
+        # 🔥 NUEVOS CONTADORES PARA LOS LOTES
+        procesados = 0 
+        batch_size = 50 
 
         # Pre-cargamos la nómina para hacer las búsquedas rapidísimo
         todos_los_productos_log = Producto.query.filter_by(sector='logistica').all()
@@ -6220,7 +6224,20 @@ def importar_productos():
                 db.session.add(nuevo_prod)
                 diccionario_sku[sku] = nuevo_prod
                 productos_agregados += 1
+                
+            # 🔥 SUMAMOS 1 AL CONTADOR
+            procesados += 1
+            
+            # 🔥 MAGIA ACÁ: CADA 50 PRODUCTOS GUARDAMOS Y RESPIRAMOS
+            if procesados % batch_size == 0:
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'❌ Error guardando lote en la fila {index}: {str(e)}', 'error')
+                    return redirect(request.referrer)
 
+        # 🔥 AL FINAL, GUARDAMOS LO QUE HAYA QUEDADO PENDIENTE
         db.session.commit()
         flash(f'✅ Catálogo Logística actualizado mediante Excel: {productos_agregados} nuevos, {productos_actualizados} actualizados.', 'success')
 
@@ -9198,6 +9215,49 @@ def planificar_pedido_cliente(pedido_id):
         'status': 'success',
         'mensaje': f'Pedido de {pedido.cliente} programado.'
     })
+
+@app.route('/planificar_pedidos_ventas_masivo', methods=['POST'])
+@login_required
+def planificar_pedidos_ventas_masivo():
+    # Seguridad de roles
+    roles_autorizados = ['admin', 'planificacion', 'jefe_produccion', 'gerencia']
+    if current_user.rol not in roles_autorizados:
+        return jsonify({'status': 'error', 'mensaje': 'No tienes permisos.'})
+
+    # 1. Atrapamos todos los IDs de los pedidos tildados
+    pedidos_ids = request.form.getlist('pedidos_seleccionados')
+    if not pedidos_ids:
+        return jsonify({'status': 'error', 'mensaje': 'No seleccionaste ningún pedido.'})
+
+    # 2. Atrapamos la fecha y prioridad global
+    fecha_str = request.form.get('fecha_planificada_masiva')
+    fecha_plan = datetime.strptime(fecha_str, '%Y-%m-%d').date() if fecha_str else datetime.now().date()
+    prioridad_elegida = request.form.get('prioridad_masiva', 'Normal')
+    
+    procesados = 0
+    # 3. Procesamos cada pedido seleccionado
+    for pid in pedidos_ids:
+        pedido = PedidoCliente.query.get(pid)
+        if pedido and pedido.estado == 'Pendiente':
+            nueva_orden = OrdenProduccion(
+                sku=pedido.sku,
+                descripcion=f"[Cliente: {pedido.cliente}] {pedido.descripcion}",
+                cantidad=pedido.cantidad,
+                estado='Pendiente',
+                prioridad=prioridad_elegida,
+                origen_pedido='Ventas',
+                lote_referencia=f"PED-{pedido.id}",
+                fecha_planificada=fecha_plan
+            )
+            db.session.add(nueva_orden)
+            pedido.estado = 'Planificado'
+            procesados += 1
+            
+    if procesados > 0:
+        db.session.commit()
+        return jsonify({'status': 'success', 'mensaje': f'Se planificaron {procesados} pedidos correctamente.'})
+    else:
+        return jsonify({'status': 'error', 'mensaje': 'No se pudo procesar ningún pedido.'})
 
 @app.route('/admin/vaciar_pedidos_cargados', methods=['GET', 'POST'])
 @login_required

@@ -308,61 +308,77 @@
             <h3 style="margin: 0 0 15px 0; color: #b45309; display: flex; align-items: center; gap: 8px;">
                 📥 ¡Tenés {{ pedidos_ventas|length }} Pedidos de Ventas Pendientes!
             </h3>
-            <div class="table-responsive">
-                <table style="background: white; width: 100%; border-collapse: collapse;">
-                    <thead style="background: #fef3c7;">
-                        <tr>
-                            <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Cliente</th>
-                            <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Tipo</th>
-                            <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Detalle / SKU</th>
-                            <th style="padding: 12px; text-align: center; color: #b45309; border-bottom: 2px solid #fde68a;">Cant.</th>
-                            <th style="padding: 12px; text-align: center; color: #b45309; border-bottom: 2px solid #fde68a;">Fecha Fab. / Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for pedido in pedidos_ventas %}
-                        <tr>
-                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-weight: bold; color: #1e293b;">
-                                {{ pedido.cliente }}
-                                <div style="font-size: 11px; color: #94a3b8; font-weight: normal; margin-top: 3px;">Vendedor: {{ pedido.vendedor }}</div>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7;">
-                                {% if pedido.es_a_medida %}
-                                    <span style="background: #ede9fe; color: #6d28d9; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">✂️ A MEDIDA</span>
-                                {% else %}
-                                    <span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">📦 ESTÁNDAR</span>
-                                {% endif %}
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-size: 13px; color: #475569;">
-                                {{ pedido.sku if not pedido.es_a_medida else pedido.descripcion }}
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-size: 18px; font-weight: 900; color: #dc2626; text-align: center;">
-                                {{ pedido.cantidad }}
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #fef3c7; text-align: center;">
+            
+            <form id="form-ventas-masivo" action="/planificar_pedidos_ventas_masivo" method="POST">
+                
+                {% if not es_solo_lectura %}
+                <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px; background: white; padding: 15px; border-radius: 8px; border: 1px solid #fde68a;">
+                    <label style="font-weight: bold; cursor: pointer; color: #b45309; display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" id="seleccionar-todos-ventas" style="transform: scale(1.2);"> Todos
+                    </label>
+                    
+                    <div style="width: 2px; height: 30px; background: #fde68a; margin: 0 10px;"></div>
+                    
+                    <span style="font-size: 13px; font-weight: bold; color: #b45309;">🗓️ Fabricar el:</span>
+                    <input type="date" name="fecha_planificada_masiva" required style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; font-weight: bold; color: #334155; outline: none;">
+                    
+                    <span style="font-size: 13px; font-weight: bold; color: #b45309; margin-left: 10px;">⚡ Prioridad:</span>
+                    <select name="prioridad_masiva" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; font-weight: bold; color: #334155; outline: none;">
+                        <option value="Baja">Baja</option>
+                        <option value="Normal" selected>Normal</option>
+                        <option value="Urgente">🚨 Urgente</option>
+                    </select>
+                    
+                    <button type="submit" style="background: #10b981; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; white-space: nowrap; margin-left: auto;">
+                        ⚙️ Planificar Seleccionados
+                    </button>
+                </div>
+                {% endif %}
+
+                <div class="table-responsive">
+                    <table style="background: white; width: 100%; border-collapse: collapse;">
+                        <thead style="background: #fef3c7;">
+                            <tr>
                                 {% if not es_solo_lectura %}
-                                <form action="{{ url_for('planificar_pedido_cliente', pedido_id=pedido.id) }}" method="POST" style="margin: 0; display: flex; gap: 8px; justify-content: center; align-items: center;">
-                                    <input type="date" name="fecha_planificada" required style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: bold; color: #334155; outline: none;">
-                                    
-                                    <select name="prioridad" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: bold; color: #334155; outline: none;">
-                                        <option value="Baja">Baja</option>
-                                        <option value="Normal" selected>Normal</option>
-                                        <option value="Urgente">🚨 Urg.</option>
-                                    </select>
-                                    
-                                    <button type="submit" style="background: #10b981; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; white-space: nowrap;">
-                                        ⚙️ Planificar
-                                    </button>
-                                </form>
-                                {% else %}
-                                <span style="color: #94a3b8; font-size: 12px; font-weight: bold;">Bloqueado</span>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #fde68a; width: 40px;">✓</th>
                                 {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                                <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Cliente</th>
+                                <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Tipo</th>
+                                <th style="padding: 12px; text-align: left; color: #b45309; border-bottom: 2px solid #fde68a;">Detalle / SKU</th>
+                                <th style="padding: 12px; text-align: center; color: #b45309; border-bottom: 2px solid #fde68a;">Cant.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pedido in pedidos_ventas %}
+                            <tr>
+                                {% if not es_solo_lectura %}
+                                <td style="padding: 12px; border-bottom: 1px solid #fef3c7; text-align: center;">
+                                    <input type="checkbox" name="pedidos_seleccionados" value="{{ pedido.id }}" class="chk-pedido-venta" style="transform: scale(1.3);">
+                                </td>
+                                {% endif %}
+                                <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-weight: bold; color: #1e293b;">
+                                    {{ pedido.cliente }}
+                                    <div style="font-size: 11px; color: #94a3b8; font-weight: normal; margin-top: 3px;">Vendedor: {{ pedido.vendedor }}</div>
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #fef3c7;">
+                                    {% if pedido.es_a_medida %}
+                                        <span style="background: #ede9fe; color: #6d28d9; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">✂️ A MEDIDA</span>
+                                    {% else %}
+                                        <span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">📦 ESTÁNDAR</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-size: 13px; color: #475569;">
+                                    {{ pedido.sku if not pedido.es_a_medida else pedido.descripcion }}
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #fef3c7; font-size: 18px; font-weight: 900; color: #dc2626; text-align: center;">
+                                    {{ pedido.cantidad }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
         </div>
         {% endif %}
 
@@ -527,70 +543,6 @@
             if(!esSoloLectura) actualizarBarraFlotante();
         }
 
-        document.addEventListener("DOMContentLoaded", () => { renderTabla(); });
-
-        let timerBusqueda;
-        const buscador = document.getElementById("buscadorPlan");
-        const selectorCobertura = document.getElementById("selectorCobertura");
-        const tbody = document.getElementById("tbodyPlanificacion");
-
-        buscador.addEventListener("input", function() {
-            clearTimeout(timerBusqueda);
-            timerBusqueda = setTimeout(() => { realizarBusquedaVivo(); }, 300);
-        });
-
-        selectorCobertura.addEventListener("change", function() {
-            realizarBusquedaVivo();
-        });
-
-        async function realizarBusquedaVivo() {
-            const q = buscador.value;
-            const cob = selectorCobertura.value;
-            tbody.style.opacity = '0.4';
-            try {
-                const res = await fetch(`/api/busqueda_planificacion_vivo?q=${q}&cobertura_dias=${cob}`);
-                const data = await res.json();
-                memoriaDatos = data.datos.map(item => ({...item, checked: false}));
-                aplicarOrden();
-                renderTabla();
-                if(!esSoloLectura) document.getElementById('chkTodos').checked = false;
-            } catch (e) { console.error(e); } finally { tbody.style.opacity = '1'; }
-        }
-
-        function ordenarTabla(colIndex) {
-            if (sortCol === colIndex) sortAsc = !sortAsc;
-            else { sortCol = colIndex; sortAsc = true; }
-            actualizarIconosOrden(colIndex, sortAsc);
-            aplicarOrden();
-            renderTabla();
-        }
-
-        function aplicarOrden() {
-            if (sortCol === null) return;
-            memoriaDatos.sort((a, b) => {
-                let valA, valB;
-                if (sortCol === 1) { valA = a.sku; valB = b.sku; }
-                else if (sortCol === 2) { valA = a.dias_num; valB = b.dias_num; }
-                else if (sortCol === 3) { valA = a.promedio_mensual; valB = b.promedio_mensual; }
-                else if (sortCol === 4) { valA = a.stock_actual; valB = b.stock_actual; }
-                else if (sortCol === 5) { valA = a.en_fabrica; valB = b.en_fabrica; }
-                else if (sortCol === 6) { valA = a.estado; valB = b.estado; }
-                else if (sortCol === 7) { valA = parseInt(a.val_input) || 0; valB = parseInt(b.val_input) || 0; }
-                if (valA < valB) return sortAsc ? -1 : 1;
-                if (valA > valB) return sortAsc ? 1 : -1;
-                return 0;
-            });
-        }
-
-        function actualizarIconosOrden(columnaActiva, isAsc) {
-            document.querySelectorAll('th.sortable .sort-icon').forEach(icon => { icon.innerHTML = '⇅'; icon.style.color = '#94a3b8'; });
-            let iconoActivo = document.querySelectorAll('th.sortable')[columnaActiva - 1].querySelector('.sort-icon');
-            if(iconoActivo) {
-                iconoActivo.innerHTML = isAsc ? '↑' : '↓';
-                iconoActivo.style.color = '#0f172a';
-            }
-        }
-
         function updateChk(sku, isChecked) {
             let item = memoriaDatos.find(i => i.sku === sku);
             if(item) item.checked = isChecked;
@@ -616,11 +568,8 @@
         }
 
         function exportarPlanificacionExcel() {
-            // Lee lo que está escrito en el buscador y el selector de días
             const q = document.getElementById("buscadorPlan").value;
             const cob = document.getElementById("selectorCobertura").value;
-    
-            // Le manda esos datos a Python para que baje el Excel exacto
             window.location.href = `/exportar_planificacion?q=${encodeURIComponent(q)}&cobertura_dias=${cob}`;
         }
 
@@ -636,51 +585,71 @@
             form.submit();
         }
     </script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // 1. Atrapamos todos los formularios de "Planificar Pedido"
-        const formularios = document.querySelectorAll('form[action^="/planificar_pedido_cliente/"]');
     
-        formularios.forEach(form => {
-            form.addEventListener('submit', function(e) {
-                // 🔥 FRENAMOS LA RECARGA DE LA PÁGINA
-                e.preventDefault(); 
+    <script>
+    // 🔥 LÓGICA AJAX PARA EL FORMULARIO MASIVO DE VENTAS 🔥
+    document.addEventListener('DOMContentLoaded', function() {
+        const formMasivoVentas = document.getElementById('form-ventas-masivo');
+        if (formMasivoVentas) {
             
-                // Ponemos el botón en "Cargando..." para que el usuario sepa que hizo clic
-                const boton = form.querySelector('button[type="submit"]');
+            // 1. Botón de "Seleccionar Todos"
+            const btnTodos = document.getElementById('seleccionar-todos-ventas');
+            btnTodos.addEventListener('change', function(e) {
+                const checkboxes = document.querySelectorAll('.chk-pedido-venta');
+                checkboxes.forEach(chk => chk.checked = e.target.checked);
+            });
+
+            // 2. Al apretar "Planificar Seleccionados"
+            formMasivoVentas.addEventListener('submit', function(e) {
+                e.preventDefault(); // Frenamos la recarga de la página
+                
+                const seleccionados = document.querySelectorAll('.chk-pedido-venta:checked');
+                if (seleccionados.length === 0) {
+                    alert("⚠️ Seleccioná al menos un pedido para planificar.");
+                    return;
+                }
+
+                const boton = formMasivoVentas.querySelector('button[type="submit"]');
                 const textoOriginal = boton.innerHTML;
-                boton.innerHTML = '⏳ Enviando...'; 
+                boton.innerHTML = '⏳ Procesando...';
                 boton.disabled = true;
-            
-                // 2. Mandamos los datos "por atrás"
-                fetch(form.action, {
+
+                fetch(formMasivoVentas.action, {
                     method: 'POST',
-                    body: new FormData(form) // Agarra la fecha y prioridad que elegiste
+                    body: new FormData(formMasivoVentas)
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if(data.status === 'success') {
-                        // 3. EFECTO VISUAL: Ocultamos el renglón del pedido suavemente
-                        // Busca el 'tr' (fila de la tabla) o 'div' padre que envuelve al pedido
-                        const fila = form.closest('tr') || form.closest('.card'); 
-                        if (fila) {
+                    if (data.status === 'success') {
+                        // Desaparecemos todos los renglones tildados
+                        seleccionados.forEach(chk => {
+                            const fila = chk.closest('tr');
                             fila.style.transition = "all 0.5s";
                             fila.style.opacity = "0";
-                            setTimeout(() => fila.remove(), 500); // Lo borra de la vista en medio segundo
-                        }
+                            setTimeout(() => fila.remove(), 500);
+                        });
+                        
+                        // Volvemos el botón a la normalidad
+                        boton.innerHTML = '✅ ¡Listo!';
+                        setTimeout(() => { 
+                            boton.innerHTML = textoOriginal; 
+                            boton.disabled = false; 
+                            btnTodos.checked = false; 
+                        }, 2000);
                     } else {
-                        alert("Hubo un error al planificar.");
+                        alert(data.mensaje);
                         boton.innerHTML = textoOriginal;
                         boton.disabled = false;
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
+                    alert("Hubo un error de conexión.");
                     boton.innerHTML = textoOriginal;
                     boton.disabled = false;
                 });
             });
-        });
+        }
     });
     </script>
 </body>
