@@ -10517,6 +10517,127 @@ def reprogramar_orden():
         db.session.rollback()
         return jsonify({'status': 'error', 'mensaje': str(e)})
 
+@app.route('/importar_planificacion_excel', methods=['POST'])
+@login_required
+def importar_planificacion_excel():
+    # 🔥 CANDADO DE SEGURIDAD
+    if current_user.rol not in ['admin', 'planificacion', 'jefe_produccion', 'gerencia']:
+        flash("🚫 Acceso denegado.", "error")
+        return redirect(request.referrer)
+
+    archivo = request.files.get('archivo_excel')
+    if not archivo or archivo.filename == '':
+        flash('❌ No se seleccionó ningún archivo.', 'error')
+        return redirect(request.referrer)
+
+    try:
+        import pandas as pd
+        df = pd.read_excel(archivo)
+        df = df.fillna('')
+        
+        # Pasamos los títulos de las columnas a mayúsculas para evitar errores
+        cols = {str(c).strip().upper(): c for c in df.columns}
+        
+        if 'SKU' not in cols or 'CANTIDAD' not in cols:
+            flash("❌ El Excel debe tener sí o sí las columnas 'SKU' y 'CANTIDAD'.", "error")
+            return redirect(request.referrer)
+
+        # Nos traemos el catálogo para validar que los SKU existan
+        skus_validos = {p.sku: p.descripcion for p in Producto.query.filter_by(sector='logistica').all()}
+        
+        nuevas_ordenes = []
+        errores = 0
+
+        for index, row in df.iterrows():
+            sku = str(row[cols['SKU']]).strip().upper()
+            
+            try:
+                cant = int(row[cols['CANTIDAD']])
+            except:
+                continue # Si la cantidad no es un número, saltamos la fila
+            
+            if not sku or cant <= 0:
+                continue
+                
+            if sku not in skus_validos:
+                errores += 1
+                continue # Si el SKU no existe en la BD, lo salteamos
+
+            # Calculamos la fecha (por defecto hoy, o la que diga el Excel)
+            fecha_plan = datetime.now().date()
+            if 'FECHA' in cols and row[cols['FECHA']] != '':
+                try:
+                    fecha_pd = pd.to_datetime(row[cols['FECHA']])
+                    fecha_plan = fecha_pd.date()
+                except:
+                    pass
+            
+            # Referencia / Motivo
+            referencia = "Carga Masiva Excel"
+            if 'REFERENCIA' in cols and str(row[cols['REFERENCIA']]).strip() != '':
+                referencia = str(row[cols['REFERENCIA']]).strip()
+
+            nueva_orden = OrdenProduccion(
+                sku=sku,
+                descripcion=skus_validos[sku],
+                cantidad=cant,
+                estado='Pendiente',
+                prioridad='Normal',
+                origen_pedido='Planificación',
+                lote_referencia=referencia,
+                fecha_planificada=fecha_plan
+            )
+            nuevas_ordenes.append(nueva_orden)
+
+        if nuevas_ordenes:
+            db.session.add_all(nuevas_ordenes)
+            db.session.commit()
+            msg = f"✅ ¡Éxito! Se enviaron {len(nuevas_ordenes)} órdenes a fábrica."
+            if errores > 0:
+                msg += f" (Se omitieron {errores} códigos porque no existen en el catálogo de Logística)."
+            flash(msg, "success")
+        else:
+            flash("⚠️ No se encontró ninguna orden válida para importar.", "error")
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ Error al procesar el Excel: {str(e)}", "error")
+
+    return redirect(request.referrer)
+@app.route('/descargar_plantilla_planificacion')
+@login_required
+def descargar_plantilla_planificacion():
+    # Creamos dos filas de ejemplo para que el usuario entienda cómo se llena
+    data = {
+        'SKU': ['SKU-EJEMPLO-01', 'SKU-EJEMPLO-02'],
+        'CANTIDAD': [50, 100],
+        'FECHA': [datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d')],
+        'REFERENCIA': ['Stock de seguridad', 'Pedido urgente']
+    }
+    
+    import pandas as pd
+    import io
+    df = pd.DataFrame(data)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Plantilla')
+        
+        # Le damos un ancho lindo a las columnas para que quede prolijo
+        worksheet = writer.sheets['Plantilla']
+        worksheet.column_dimensions['A'].width = 25
+        worksheet.column_dimensions['B'].width = 15
+        worksheet.column_dimensions['C'].width = 15
+        worksheet.column_dimensions['D'].width = 30
+        
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='Plantilla_Planificacion_Masiva.xlsx'
+    )
+
 if __name__ == '__main__':
     print("Iniciando WMS Profesional en puerto 5001...")
     with app.app_context():
