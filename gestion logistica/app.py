@@ -6128,7 +6128,7 @@ def mover_zona_rapida(item_id):
     flash(f"⚡ {cantidad_mover} unidades transferidas exitosamente a {destino_txt}.", "success")
     return redirect(request.referrer)
 
-@@app.route('/importar_productos', methods=['POST'])
+@app.route('/importar_productos', methods=['POST'])
 @login_required
 def importar_productos():
     # 🔥 CANDADO DE SEGURIDAD
