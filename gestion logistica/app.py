@@ -10798,6 +10798,32 @@ def imprimir_cronograma_pdf():
 
     return render_template('imprimir_cronograma.html', datos=datos_cronograma, headers=dias_headers, hoy=hoy_obj)
 
+@app.route('/produccion/packing')
+@login_required
+def packing_list():
+    # Seguridad: Mismos roles que Producción
+    roles_permitidos = ['admin', 'supervisor_produccion', 'supervisor_produccio', 'jefe_produccion', 'planificacion', 'encargado']
+    if current_user.rol not in roles_permitidos:
+        flash("🚫 Acceso denegado.", "error")
+        return redirect(url_for('produccion'))
+
+    # Traemos las órdenes activas
+    ordenes = OrdenProduccion.query.filter(
+        OrdenProduccion.estado.in_(['Pendiente', 'En Proceso', 'Finalizado'])
+    ).all()
+
+    # 🔥 NUEVO: Agrupamos las cantidades totales por SKU
+    sku_cantidades = {}
+    for o in ordenes:
+        if o.sku not in sku_cantidades:
+            sku_cantidades[o.sku] = 0
+        sku_cantidades[o.sku] += o.cantidad
+
+    # Lo ordenamos alfabéticamente para que el menú desplegable quede prolijo
+    skus_ordenados = dict(sorted(sku_cantidades.items()))
+
+    return render_template('packing.html', skus=skus_ordenados)
+
 if __name__ == '__main__':
     print("Iniciando WMS Profesional en puerto 5001...")
     with app.app_context():

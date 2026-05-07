@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packing List - Producción</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #334155; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; background-color: #1e293b; color: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-nav { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.2s; border: none; cursor: pointer; }
+        .btn-nav:hover { background: #2563eb; }
+        
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        
+        .btn-nuevo-pallet { background: #10b981; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); }
+        .btn-nuevo-pallet:hover { background: #059669; transform: scale(1.02); }
+
+        .grid-pallets { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px; }
+        
+        .pallet-card { background: white; border-radius: 12px; border: 2px solid #cbd5e1; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column; transition: 0.2s; }
+        .pallet-header { background: #f1f5f9; padding: 15px; border-bottom: 2px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; }
+        .pallet-title { font-size: 18px; font-weight: 900; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px;}
+        .pallet-body { padding: 15px; flex-grow: 1; }
+        
+        .info-pallet { display: flex; gap: 15px; margin-bottom: 15px; }
+        .info-box { background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; flex: 1; }
+        .info-box label { display: block; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
+        .info-box input { width: 100%; border: none; background: transparent; font-weight: bold; font-size: 14px; color: #0f172a; outline: none; }
+
+        .table-items { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .table-items th { text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+        .table-items td { padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+        .table-items select, .table-items input { width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; font-weight: bold; outline: none; transition: 0.2s; }
+        .table-items input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        
+        .btn-add-item { width: 100%; background: #e0f2fe; color: #0284c7; border: 2px dashed #bae6fd; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-add-item:hover { background: #bae6fd; }
+        .btn-delete { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 16px; }
+
+        /* Lista de SKUs oculta para usar en JS */
+        #skus-data { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2 style="margin: 0;">📦 Armado de Packing List</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('produccion') }}" class="btn-nav">← Volver a Fábrica</a>
+        </div>
+    </div>
+
+    <div id="skus-data">
+        <option value="">Seleccionar SKU...</option>
+        {% for sku, cantidad in skus.items() %}
+            <option value="{{ sku }}" data-cant="{{ cantidad }}">{{ sku }} (Hay {{ cantidad }}u.)</option>
+        {% endfor %}
+    </div>
+
+    <div class="header-actions">
+        <div>
+            <h3 style="margin: 0 0 5px 0; color: #0f172a;">Gestión de Pallets</h3>
+            <p style="margin: 0; font-size: 13px; color: #64748b;">Creá los pallets y asigná qué productos van adentro de cada uno.</p>
+        </div>
+        <button class="btn-nuevo-pallet" onclick="crearPallet()">+ AGREGAR PALLET</button>
+    </div>
+
+    <div class="grid-pallets" id="contenedor-pallets">
+        </div>
+
+    <script>
+        let contadorPallets = 0;
+        const opcionesSkus = document.getElementById('skus-data').innerHTML;
+
+        function crearPallet() {
+            contadorPallets++;
+            const palletId = contadorPallets;
+            
+            const div = document.createElement('div');
+            div.className = 'pallet-card';
+            div.id = `pallet-${palletId}`;
+            
+            div.innerHTML = `
+                <div class="pallet-header">
+                    <h4 class="pallet-title">🗂️ Pallet N° ${palletId}</h4>
+                    <button class="btn-delete" onclick="borrarPallet(${palletId})" title="Eliminar Pallet">✖</button>
+                </div>
+                <div class="pallet-body">
+                    <div class="info-pallet">
+                        <div class="info-box">
+                            <label>Peso (Kg)</label>
+                            <input type="number" placeholder="Ej: 150">
+                        </div>
+                        <div class="info-box">
+                            <label>Medidas (cm)</label>
+                            <input type="text" placeholder="L x A x H">
+                        </div>
+                    </div>
+                    
+                    <table class="table-items" id="tabla-items-${palletId}">
+                        <thead>
+                            <tr>
+                                <th style="width: 60%;">Producto (SKU)</th>
+                                <th style="width: 25%; text-align: center;">Cant.</th>
+                                <th style="width: 15%; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            </tbody>
+                    </table>
+                    
+                    <button class="btn-add-item" onclick="agregarFila(${palletId})">+ Agregar Producto</button>
+                </div>
+            `;
+            
+            document.getElementById('contenedor-pallets').appendChild(div);
+            // Agregamos una fila por defecto
+            agregarFila(palletId);
+        }
+
+        function agregarFila(palletId) {
+            const tbody = document.querySelector(`#tabla-items-${palletId} tbody`);
+            const tr = document.createElement('tr');
+            
+            // 🔥 MODIFICADO: Agregamos el onchange al select 🔥
+            tr.innerHTML = `
+                <td>
+                    <select class="select-sku" onchange="autoCompletarCantidad(this)">
+                        ${opcionesSkus}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" min="1" value="1" style="text-align: center; background: #fffbeb;" class="input-cant">
+                </td>
+                <td style="text-align: center;">
+                    <button class="btn-delete" onclick="this.closest('tr').remove()">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        // 🔥 NUEVA FUNCIÓN: Autocompleta la cantidad al seleccionar el SKU 🔥
+        function autoCompletarCantidad(selectElement) {
+            const tr = selectElement.closest('tr');
+            const inputCantidad = tr.querySelector('.input-cant');
+            const opcionElegida = selectElement.options[selectElement.selectedIndex];
+            
+            // Sacamos el valor oculto (data-cant)
+            const cantidadSugerida = opcionElegida.getAttribute('data-cant');
+            
+            if (cantidadSugerida) {
+                inputCantidad.value = cantidadSugerida;
+                
+                // Un mini efecto visual para que el usuario note que se actualizó solo
+                inputCantidad.style.backgroundColor = '#dcfce7'; // Verde clarito
+                setTimeout(() => {
+                    inputCantidad.style.backgroundColor = '#fffbeb'; // Vuelve a normal
+                }, 500);
+            } else {
+                inputCantidad.value = 1;
+            }
+        }
+
+        function borrarPallet(palletId) {
+            if(confirm('¿Seguro que querés borrar este pallet?')) {
+                document.getElementById(`pallet-${palletId}`).remove();
+            }
+        }
+
+        window.onload = function() {
+            crearPallet();
+        };
+    </script>
+</body>
+</html>
