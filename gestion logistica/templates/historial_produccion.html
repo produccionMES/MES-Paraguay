@@ -238,7 +238,7 @@
                         {# 🔥 LÓGICA DE BORRADO INDIVIDUAL SILENCIOSO (AJAX) 🔥 #}
                         {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
                         <td style="text-align: center;">
-                            <form action="{{ url_for('borrar_registro_produccion', id=orden.id) }}" method="POST" style="margin: 0;" onsubmit="borrarIndividualSilencioso(event, this)">
+                            <form class="form-borrar" action="{{ url_for('borrar_registro_produccion', id=orden.id) }}" method="POST" style="margin: 0;" onsubmit="borrarIndividualSilencioso(event, this)">
                                 <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 20px; transition: 0.2s;" title="Eliminar">🗑️</button>
                             </form>
                         </td>
@@ -376,7 +376,8 @@
             // Disparamos un AJAX por cada casillero tildado (usando la ruta del tachito original)
             checkboxes.forEach(chk => {
                 let fila = chk.closest('tr');
-                let formIndividual = fila.querySelector('form');
+                // 🔥 FIX: Ahora el JS busca Específicamente el formulario de borrar y no el de cambiar estado 🔥
+                let formIndividual = fila.querySelector('.form-borrar'); 
                 
                 if (formIndividual) {
                     let promesa = fetch(formIndividual.action, { method: 'POST' });
