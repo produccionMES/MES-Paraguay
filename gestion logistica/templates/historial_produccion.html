@@ -29,7 +29,7 @@
 
         .table-responsive { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow-x: auto; border: 1px solid #e2e8f0; }
         table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
         th { background-color: #f8fafc; color: #475569; font-weight: 800; text-transform: uppercase; font-size: 11px; }
         
         .tiempo-badge { background: #e0f2fe; color: #0369a1; padding: 6px 12px; border-radius: 20px; font-weight: 900; font-size: 14px; border: 1px solid #bae6fd; display: inline-block; white-space: nowrap;}
@@ -105,6 +105,10 @@
                     <button type="button" class="btn-pdf" onclick="abrirReportePDF()">
                         📄 Reporte PDF
                     </button>
+                    
+                    <button type="button" id="btn-borrar-masivo" style="display: none; background: #ef4444; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; align-items: center; gap: 8px; font-size: 15px;" onclick="borrarMasivo()">
+                        🗑️ Borrar Seleccionados (<span id="cant-borrar">0</span>)
+                    </button>
                 {% endif %}
 
                 <a href="{{ url_for('historial_produccion') }}" class="btn-limpiar">Limpiar</a>
@@ -116,6 +120,13 @@
         <table>
             <thead>
                 <tr>
+                    {# 🔥 CHECKBOX MAESTRO PARA SUPERADMINS 🔥 #}
+                    {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
+                        <th style="width: 40px; text-align: center;">
+                            <input type="checkbox" id="chk-todos-borrar" style="transform: scale(1.3); cursor: pointer; accent-color: #ef4444;" onchange="toggleTodosBorrar(this.checked)">
+                        </th>
+                    {% endif %}
+                    
                     <th>Producto (SKU)</th>
                     <th>Cant.</th>
                     <th>Lote Ref.</th>
@@ -128,7 +139,7 @@
                     
                     {# 🔥 BLOQUEO DE LA COLUMNA "ACCIONES" PARA SUPERVISORES 🔥 #}
                     {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
-                        <th>Acciones</th>
+                        <th style="text-align: center;">Acciones</th>
                     {% endif %}
                 </tr>
             </thead>
@@ -153,6 +164,13 @@
                     {% endif %}
 
                     <tr>
+                        {# 🔥 CHECKBOX INDIVIDUAL 🔥 #}
+                        {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
+                            <td style="text-align: center;">
+                                <input type="checkbox" class="chk-borrar-item" value="{{ orden.id }}" style="transform: scale(1.3); cursor: pointer; accent-color: #ef4444;" onchange="verificarSeleccionBorrar()">
+                            </td>
+                        {% endif %}
+
                         <td style="font-weight: 900; color: #0f172a;">
                             {{ orden.sku }}
                             {% if orden.descripcion and orden.descripcion != 'S/D' %}
@@ -217,11 +235,11 @@
                             {% endif %}
                         </td>
 
-                        {# 🔥 BLOQUEO DEL BOTÓN DE BORRAR PARA SUPERVISORES 🔥 #}
+                        {# 🔥 LÓGICA DE BORRADO INDIVIDUAL SILENCIOSO (AJAX) 🔥 #}
                         {% if current_user.rol not in ['supervisor', 'supervisor_produccion', 'supervisor_produccio'] %}
-                        <td>
-                            <form action="{{ url_for('borrar_registro_produccion', id=orden.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
-                                <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 20px;" title="Eliminar">🗑️</button>
+                        <td style="text-align: center;">
+                            <form action="{{ url_for('borrar_registro_produccion', id=orden.id) }}" method="POST" style="margin: 0;" onsubmit="borrarIndividualSilencioso(event, this)">
+                                <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 20px; transition: 0.2s;" title="Eliminar">🗑️</button>
                             </form>
                         </td>
                         {% endif %}
@@ -281,6 +299,115 @@
         function abrirReportePDF() {
             const fecha = document.getElementById('input_hasta').value;
             window.open(`{{ url_for('reporte_produccion_diario') }}?fecha=${fecha}`, '_blank');
+        }
+
+        // ==========================================
+        // 🔥 LÓGICA DE BORRADO SILENCIOSO (AJAX) 🔥
+        // ==========================================
+
+        // 1. Borrado de a un renglón
+        function borrarIndividualSilencioso(event, formulario) {
+            event.preventDefault(); // Cortamos de raíz el efecto canguro
+            
+            if(!confirm('¿Seguro que deseas eliminar este registro para siempre?')) return;
+            
+            let btn = formulario.querySelector('button');
+            let iconoOriginal = btn.innerHTML;
+            btn.innerHTML = '⏳';
+            btn.disabled = true;
+
+            fetch(formulario.action, { method: 'POST' })
+            .then(res => {
+                if(res.ok) {
+                    let fila = formulario.closest('tr');
+                    fila.style.transition = 'all 0.5s ease';
+                    fila.style.opacity = '0';
+                    fila.style.transform = 'translateX(20px)'; // Efecto de que se desliza
+                    setTimeout(() => fila.remove(), 500); // Lo borra de la vista
+                } else {
+                    alert('❌ Ocurrió un error al intentar borrar el registro.');
+                    btn.innerHTML = iconoOriginal;
+                    btn.disabled = false;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('❌ Ocurrió un error de red.');
+                btn.innerHTML = iconoOriginal;
+                btn.disabled = false;
+            });
+        }
+
+        // 2. Lógica para los cuadraditos masivos
+        function toggleTodosBorrar(checked) {
+            document.querySelectorAll('.chk-borrar-item').forEach(chk => {
+                chk.checked = checked;
+            });
+            verificarSeleccionBorrar();
+        }
+
+        function verificarSeleccionBorrar() {
+            let seleccionados = document.querySelectorAll('.chk-borrar-item:checked').length;
+            let btnBorrar = document.getElementById('btn-borrar-masivo');
+            let txtCant = document.getElementById('cant-borrar');
+            
+            if (seleccionados > 0) {
+                txtCant.innerText = seleccionados;
+                btnBorrar.style.display = 'flex';
+            } else {
+                btnBorrar.style.display = 'none';
+            }
+        }
+
+        // 3. Borrado Masivo (Manda todos los borrados juntos "por atrás")
+        function borrarMasivo() {
+            let checkboxes = document.querySelectorAll('.chk-borrar-item:checked');
+            if (checkboxes.length === 0) return;
+
+            if(!confirm(`⚠️ Estás a punto de eliminar permanentemente ${checkboxes.length} registros del historial.\n\n¿Estás completamente seguro? Esta acción NO se puede deshacer.`)) return;
+
+            let btnBorrar = document.getElementById('btn-borrar-masivo');
+            let originalText = btnBorrar.innerHTML;
+            btnBorrar.innerHTML = '⏳ Borrando registros...';
+            btnBorrar.disabled = true;
+
+            let promesas = [];
+
+            // Disparamos un AJAX por cada casillero tildado (usando la ruta del tachito original)
+            checkboxes.forEach(chk => {
+                let fila = chk.closest('tr');
+                let formIndividual = fila.querySelector('form');
+                
+                if (formIndividual) {
+                    let promesa = fetch(formIndividual.action, { method: 'POST' });
+                    promesas.push(promesa);
+                }
+            });
+
+            // Cuando terminan todos, ocultamos las filas suavemente
+            Promise.all(promesas).then(() => {
+                checkboxes.forEach(chk => {
+                    let fila = chk.closest('tr');
+                    fila.style.transition = 'all 0.5s ease';
+                    fila.style.opacity = '0';
+                    fila.style.transform = 'translateX(20px)';
+                    setTimeout(() => fila.remove(), 500);
+                });
+
+                // Reseteamos los botones
+                btnBorrar.innerHTML = originalText;
+                btnBorrar.disabled = false;
+                btnBorrar.style.display = 'none';
+                
+                let chkTodos = document.getElementById('chk-todos-borrar');
+                if (chkTodos) chkTodos.checked = false;
+
+            }).catch(err => {
+                console.error("Error en borrado masivo:", err);
+                alert("Hubo un problema al borrar algunos registros.");
+                btnBorrar.innerHTML = originalText;
+                btnBorrar.disabled = false;
+            });
         }
     </script>
 </body>
