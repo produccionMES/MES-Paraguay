@@ -4087,33 +4087,50 @@ def produccion():
     # ... (Todo el resto de tu lógica del cronograma queda EXACTAMENTE IGUAL) ...
     config_alm = ConfiguracionProduccion.query.first()
     
-    # MOTOR DEL CRONOGRAMA DE PRODUCCIÓN (Mantenlo tal cual lo tienes)
-    dias_calendario = [hoy_obj + timedelta(days=i) for i in range(15)]
+    # ================================================================
+    # CALENDARIO DE PRODUCCIÓN ESTILO EXCEL (Próximos 30 días)
+    # ================================================================
+    dias_calendario = [hoy_obj + timedelta(days=i) for i in range(30)]
     dias_headers = [d.strftime('%d/%m') for d in dias_calendario]
     dias_keys = [d.strftime('%Y-%m-%d') for d in dias_calendario]
 
+    # 🔥 NUEVO: Traemos también los Finalizados
     ordenes_programadas = OrdenProduccion.query.filter(
         OrdenProduccion.fecha_planificada >= hoy_obj,
         OrdenProduccion.fecha_planificada <= dias_calendario[-1],
-        OrdenProduccion.estado.in_(['Pendiente', 'En Proceso'])
+        OrdenProduccion.estado.in_(['Pendiente', 'En Proceso', 'Finalizado'])
     ).all()
 
     mapa_calendario = {}
     for ord_p in ordenes_programadas:
         sku = ord_p.sku
         f_key = ord_p.fecha_planificada.strftime('%Y-%m-%d') if ord_p.fecha_planificada else hoy_obj.strftime('%Y-%m-%d')
+        
         if sku not in mapa_calendario:
             mapa_calendario[sku] = {'descripcion': ord_p.descripcion, 'fechas': {}}
-        mapa_calendario[sku]['fechas'][f_key] = mapa_calendario[sku]['fechas'].get(f_key, 0) + ord_p.cantidad
+            
+        # 🔥 NUEVO: Separamos las cantidades en dos baldes
+        if f_key not in mapa_calendario[sku]['fechas']:
+            mapa_calendario[sku]['fechas'][f_key] = {'pendiente': 0, 'finalizado': 0}
+            
+        if ord_p.estado == 'Finalizado':
+            mapa_calendario[sku]['fechas'][f_key]['finalizado'] += ord_p.cantidad
+        else:
+            mapa_calendario[sku]['fechas'][f_key]['pendiente'] += ord_p.cantidad
 
     datos_calendario = []
     for sku, info in mapa_calendario.items():
         fila = {'sku': sku, 'descripcion': info['descripcion'], 'cantidades': []}
+        total_sku = 0
         for dk in dias_keys:
-            fila['cantidades'].append(info['fechas'].get(dk, 0))
+            data_dia = info['fechas'].get(dk, {'pendiente': 0, 'finalizado': 0})
+            fila['cantidades'].append(data_dia)
+            total_sku += data_dia['pendiente'] + data_dia['finalizado']
+            
+        fila['total'] = total_sku
         datos_calendario.append(fila)
         
-    datos_calendario.sort(key=lambda x: sum(x['cantidades']), reverse=True)
+    datos_calendario.sort(key=lambda x: x['sku'])
 
     return render_template('produccion.html', 
                            ordenes=ordenes_activas, 
@@ -5296,34 +5313,49 @@ def planificacion():
     pedidos_ventas = PedidoCliente.query.filter_by(estado='Pendiente').order_by(PedidoCliente.fecha_creacion.asc()).all()
 
     # ================================================================
-    # CALENDARIO DE PRODUCCIÓN ESTILO EXCEL (Próximos 15 días)
+    # CALENDARIO DE PRODUCCIÓN ESTILO EXCEL (Próximos 30 días)
     # ================================================================
-    dias_calendario = [hoy_obj + timedelta(days=i) for i in range(15)]
+    dias_calendario = [hoy_obj + timedelta(days=i) for i in range(30)]
     dias_headers = [d.strftime('%d/%m') for d in dias_calendario]
     dias_keys = [d.strftime('%Y-%m-%d') for d in dias_calendario]
 
+    # 🔥 NUEVO: Traemos también los Finalizados
     ordenes_programadas = OrdenProduccion.query.filter(
         OrdenProduccion.fecha_planificada >= hoy_obj,
         OrdenProduccion.fecha_planificada <= dias_calendario[-1],
-        OrdenProduccion.estado.in_(['Pendiente', 'En Proceso'])
+        OrdenProduccion.estado.in_(['Pendiente', 'En Proceso', 'Finalizado'])
     ).all()
 
     mapa_calendario = {}
     for ord_p in ordenes_programadas:
         sku = ord_p.sku
         f_key = ord_p.fecha_planificada.strftime('%Y-%m-%d') if ord_p.fecha_planificada else hoy_obj.strftime('%Y-%m-%d')
+        
         if sku not in mapa_calendario:
             mapa_calendario[sku] = {'descripcion': ord_p.descripcion, 'fechas': {}}
-        mapa_calendario[sku]['fechas'][f_key] = mapa_calendario[sku]['fechas'].get(f_key, 0) + ord_p.cantidad
+            
+        # 🔥 NUEVO: Separamos las cantidades en dos baldes
+        if f_key not in mapa_calendario[sku]['fechas']:
+            mapa_calendario[sku]['fechas'][f_key] = {'pendiente': 0, 'finalizado': 0}
+            
+        if ord_p.estado == 'Finalizado':
+            mapa_calendario[sku]['fechas'][f_key]['finalizado'] += ord_p.cantidad
+        else:
+            mapa_calendario[sku]['fechas'][f_key]['pendiente'] += ord_p.cantidad
 
     datos_calendario = []
     for sku, info in mapa_calendario.items():
         fila = {'sku': sku, 'descripcion': info['descripcion'], 'cantidades': []}
+        total_sku = 0
         for dk in dias_keys:
-            fila['cantidades'].append(info['fechas'].get(dk, 0))
+            data_dia = info['fechas'].get(dk, {'pendiente': 0, 'finalizado': 0})
+            fila['cantidades'].append(data_dia)
+            total_sku += data_dia['pendiente'] + data_dia['finalizado']
+            
+        fila['total'] = total_sku
         datos_calendario.append(fila)
         
-    datos_calendario.sort(key=lambda x: sum(x['cantidades']), reverse=True)
+    datos_calendario.sort(key=lambda x: x['sku'])
 
     return render_template('planificacion.html', 
                            planificacion=datos_plan, 
@@ -9086,28 +9118,30 @@ def carga_pedidos():
                 alto = request.form.get('med_alto', '')
                 lona = request.form.get('med_lona', '')
                 
-                # 🔥 NUEVOS CAMPOS ATRAPADOS 🔥
                 lona2 = request.form.get('med_lona2', '')
                 sistema = request.form.get('med_sistema', '')
                 comando = request.form.get('med_comando', '')
                 cadena = request.form.get('med_cadena', '')
                 
-                # 🔥 NUEVO: Atrapamos el campo del Peso 🔥
                 peso_cadena = request.form.get('med_peso', 'No') 
                 
                 obs_medida = request.form.get('med_obs', '').strip()
                 
                 telas_texto = f"{lona} y {lona2}" if (lona2 and 'Doble' in t_cortina) else lona
                 
-                # 🔥 Agregamos "Peso: Si/No" a la descripción oficial para que el despiece lo lea
                 descripcion = f"{t_cortina} | {ancho}x{alto}cm | Telas: {telas_texto} | Sis: {sistema} | Cadena: {cadena} | Peso: {peso_cadena} | Com: {comando}"
                 
                 if obs_medida:
                     descripcion += f" | Obs: {obs_medida}"
             
+            # 🔥 INYECCIÓN DE TRAZABILIDAD: Sellamos la descripción con el nombre del vendedor 🔥
+            sello_vendedor = f" [Cargado por: {current_user.username.upper()}]"
+            descripcion_sellada = descripcion + sello_vendedor
+            
             nuevo_pedido = PedidoCliente(
                 cliente=cliente, es_a_medida=es_a_medida, sku=sku,
-                descripcion=descripcion, cantidad=cantidad,
+                descripcion=descripcion_sellada, # Usamos la descripción con la firma
+                cantidad=cantidad,
                 vendedor=current_user.username, estado='Pendiente'
             )
             db.session.add(nuevo_pedido)
@@ -9121,9 +9155,14 @@ def carga_pedidos():
                 flash(f"❌ Error: El SKU {sku} no existe en el catálogo de Logística.", "error")
                 return redirect(url_for('carga_pedidos'))
 
+            # 🔥 INYECCIÓN DE TRAZABILIDAD PARA LOGÍSTICA 🔥
+            sello_vendedor = f" [Cargado por: {current_user.username.upper()}]"
+            descripcion_sellada = prod.descripcion + sello_vendedor
+
             nuevo_pedido = PedidoCliente(
                 cliente=cliente, es_a_medida=False, sku=sku,
-                descripcion=prod.descripcion, cantidad=cantidad,
+                descripcion=descripcion_sellada, # Usamos la descripción con la firma
+                cantidad=cantidad,
                 vendedor=current_user.username, estado='En Logística'
             )
             db.session.add(nuevo_pedido)
@@ -9135,25 +9174,24 @@ def carga_pedidos():
                 zona=f"Venta Directa - {cliente}",
                 producto=prod.descripcion,
                 sku=sku,
-                descripcion=f"Pedido #{nuevo_pedido.id} - {cliente}",
+                descripcion=f"Pedido #{nuevo_pedido.id} - {cliente} (Vendedor: {current_user.username.upper()})", # Sumamos el vendedor al picking
                 cantidad=cantidad,
                 estado='Pendiente'
             )
             db.session.add(nueva_tarea)
 
         # ====================================================================
-        # 🔥 LA MAGIA ESTÁ ACÁ: INYECCIÓN AL MÓDULO DE ANÁLISIS DE VENTAS 🔥
+        # 🔥 MÓDULO DE ANÁLISIS DE VENTAS 🔥
         # ====================================================================
-        db.session.flush() # Obligamos a la base de datos a darnos el ID del nuevo_pedido
+        db.session.flush() 
         
-        # Le inventamos un número de comprobante único para que quede prolijo
         comprobante_automatico = f"MANUAL-{nuevo_pedido.id}-{hora_argentina().strftime('%d%m')}"
         
         nueva_venta = RegistroVenta(
             nro_comprobante=comprobante_automatico,
-            fecha_venta=hora_argentina().date(), # Toma la fecha exacta de HOY (Paraguay)
+            fecha_venta=hora_argentina().date(), 
             cliente=cliente,
-            canal="Venta", # Para que en los gráficos lo puedas distinguir de MercadoLibre
+            canal="Venta", 
             total_venta=0.0
         )
         db.session.add(nueva_venta)
@@ -9162,7 +9200,7 @@ def carga_pedidos():
         detalle_venta = DetalleVenta(
             venta_id=nueva_venta.id,
             sku=nuevo_pedido.sku,
-            descripcion=nuevo_pedido.descripcion,
+            descripcion=descripcion_sellada, # Usamos la descripción con la firma para los reportes
             cantidad=nuevo_pedido.cantidad,
             precio_unitario=0.0,
             subtotal=0.0
@@ -10658,6 +10696,107 @@ def agregar_columna_observacion():
     except Exception as e:
         return f"<h1>⚠️ Aviso</h1><p>Es probable que la columna ya exista: {str(e)}</p>"
 
+@app.route('/exportar_cronograma_excel')
+@login_required
+def exportar_cronograma_excel():
+    hoy_obj = hora_argentina().date()
+    dias_calendario = [hoy_obj + timedelta(days=i) for i in range(30)]
+    dias_headers = [d.strftime('%d/%m') for d in dias_calendario]
+    dias_keys = [d.strftime('%Y-%m-%d') for d in dias_calendario]
+
+    # Traemos las órdenes
+    ordenes = OrdenProduccion.query.filter(
+        OrdenProduccion.fecha_planificada >= hoy_obj,
+        OrdenProduccion.fecha_planificada <= dias_calendario[-1],
+        OrdenProduccion.estado.in_(['Pendiente', 'En Proceso', 'Finalizado'])
+    ).all()
+
+    # Armamos el mapa de datos (Igual que en la pantalla)
+    mapa = {}
+    for o in ordenes:
+        sku = o.sku
+        f_key = o.fecha_planificada.strftime('%Y-%m-%d') if o.fecha_planificada else hoy_obj.strftime('%Y-%m-%d')
+        if sku not in mapa:
+            mapa[sku] = {'desc': o.descripcion, 'fechas': {}}
+        if f_key not in mapa[sku]['fechas']:
+            mapa[sku]['fechas'][f_key] = {'p': 0, 'f': 0}
+        
+        if o.estado == 'Finalizado':
+            mapa[sku]['fechas'][f_key]['f'] += o.cantidad
+        else:
+            mapa[sku]['fechas'][f_key]['p'] += o.cantidad
+
+    # Preparamos los datos para Pandas
+    data_rows = []
+    skus_ordenados = sorted(mapa.keys())
+    
+    for sku in skus_ordenados:
+        fila = {'SKU': sku, 'Descripción': mapa[sku]['desc']}
+        for i, dk in enumerate(dias_keys):
+            vals = mapa[sku]['fechas'].get(dk, {'p': 0, 'f': 0})
+            
+            # 🔥 ACÁ ESTÁ EL CAMBIO: Sumamos los valores y ponemos SOLO EL NÚMERO 🔥
+            total_dia = vals['p'] + vals['f']
+            fila[dias_headers[i]] = total_dia if total_dia > 0 else "-"
+            
+        data_rows.append(fila)
+
+    import pandas as pd
+    import io
+    df = pd.DataFrame(data_rows)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Cronograma_Mensual')
+        
+        # Ajustamos el ancho de las columnas para que quede prolijo
+        worksheet = writer.sheets['Cronograma_Mensual']
+        for col in worksheet.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            worksheet.column_dimensions[column].width = min(max_length + 2, 40)
+    
+    output.seek(0)
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name=f'Cronograma_Produccion_{hoy_obj.strftime("%d-%m-%Y")}.xlsx')
+
+@app.route('/imprimir_cronograma_pdf')
+@login_required
+def imprimir_cronograma_pdf():
+    # Esta ruta simplemente reutiliza la lógica del cronograma pero en una hoja blanca para imprimir
+    hoy_obj = hora_argentina().date()
+    dias_calendario = [hoy_obj + timedelta(days=i) for i in range(30)]
+    dias_headers = [d.strftime('%d/%m') for d in dias_calendario]
+    dias_keys = [d.strftime('%Y-%m-%d') for d in dias_calendario]
+
+    ordenes = OrdenProduccion.query.filter(
+        OrdenProduccion.fecha_planificada >= hoy_obj,
+        OrdenProduccion.fecha_planificada <= dias_calendario[-1],
+        OrdenProduccion.estado.in_(['Pendiente', 'En Proceso', 'Finalizado'])
+    ).all()
+
+    mapa = {}
+    for o in ordenes:
+        sku = o.sku
+        f_key = o.fecha_planificada.strftime('%Y-%m-%d') if o.fecha_planificada else hoy_obj.strftime('%Y-%m-%d')
+        if sku not in mapa: mapa[sku] = {'descripcion': o.descripcion, 'fechas': {}}
+        if f_key not in mapa[sku]['fechas']: mapa[sku]['fechas'][f_key] = {'pendiente': 0, 'finalizado': 0}
+        if o.estado == 'Finalizado': mapa[sku]['fechas'][f_key]['finalizado'] += o.cantidad
+        else: mapa[sku]['fechas'][f_key]['pendiente'] += o.cantidad
+
+    datos_cronograma = []
+    for sku in sorted(mapa.keys()):
+        fila = {'sku': sku, 'descripcion': mapa[sku]['descripcion'], 'cantidades': []}
+        for dk in dias_keys:
+            fila['cantidades'].append(mapa[sku]['fechas'].get(dk, {'pendiente': 0, 'finalizado': 0}))
+        datos_cronograma.append(fila)
+
+    return render_template('imprimir_cronograma.html', datos=datos_cronograma, headers=dias_headers, hoy=hoy_obj)
 
 if __name__ == '__main__':
     print("Iniciando WMS Profesional en puerto 5001...")

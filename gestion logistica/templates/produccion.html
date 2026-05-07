@@ -72,7 +72,9 @@
         .calendario-table th { background: #f8fafc; color: #475569; padding: 12px; font-size: 12px; border: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 5; text-transform: uppercase;}
         .calendario-table td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
         .col-fija { position: sticky; left: 0; background: white; z-index: 4; border-right: 2px solid #cbd5e1 !important; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
-        .celda-cantidad { background: #22c55e; color: white; font-weight: 900; font-size: 14px; padding: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(34,197,94,0.3); display: inline-block; min-width: 25px;}
+        .celda-cantidad { color: white; font-weight: 900; font-size: 14px; padding: 6px; border-radius: 6px; display: inline-block; min-width: 25px; text-align: center; }
+        .celda-cantidad.pendiente { background: #eab308; box-shadow: 0 2px 4px rgba(234, 179, 8, 0.3); }
+        .celda-cantidad.finalizado { background: #22c55e; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); }
         .celda-vacia { color: #cbd5e1; font-weight: bold; font-size: 12px; }
 
         /* 🔥 LAYOUT DIVIDIDO 🔥 */
@@ -90,21 +92,69 @@
 
     <div id="modalCalendarioProd" class="modal-overlay" onclick="cerrarModalCalendario(event)">
         <div class="modal-content" style="max-width: 1300px; padding: 20px;" onclick="event.stopPropagation()">
-            <button class="btn-close" style="position: absolute; right: 15px; top: 15px;" onclick="cerrarModalCalendario()">✖</button>
-            <h3 style="margin: 0 0 5px 0; color: #0f172a; font-size: 20px; display: flex; align-items: center; gap: 8px;">
-                🗓️ Cronograma de Producción (Próximos 15 días)
-            </h3>
-            <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 20px;">
-                Resumen de todos los pedidos que Planificación y Logística programaron para la fábrica.
-            </p>
+            <button type="button" class="btn-close" style="position: absolute; right: 15px; top: 15px; background: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; z-index: 10;" onclick="cerrarModalCalendario()">✖</button>
+            
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; margin-bottom: 15px;">
+                <div>
+                    <h3 style="margin: 0 0 5px 0; color: #0f172a; font-size: 20px; display: flex; align-items: center; gap: 8px;">
+                        🗓️ Cronograma de Producción (Próximos 30 días)
+                    </h3>
+                    <p style="font-size: 13px; color: #64748b; margin: 0;">
+                        Resumen de todos los pedidos programados para la fábrica.
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <a href="{{ url_for('exportar_cronograma_excel') }}" class="btn-nav" style="background: #16a34a; font-size: 12px; padding: 5px 10px;">
+                        📊 Bajar Excel
+                    </a>
+                    <a href="{{ url_for('imprimir_cronograma_pdf') }}" target="_blank" class="btn-nav" style="background: #ef4444; font-size: 12px; padding: 5px 10px;">
+                        📄 Ver PDF / Imprimir
+                    </a>
+                </div>
+                
+                <div style="display: flex; gap: 15px; background: #f8fafc; padding: 8px 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="width: 16px; height: 16px; background: #eab308; border-radius: 4px; box-shadow: 0 2px 4px rgba(234,179,8,0.3); display: inline-block;"></span>
+                        <span style="font-size: 12px; font-weight: bold; color: #475569; text-transform: uppercase;">Para Producir</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="width: 16px; height: 16px; background: #22c55e; border-radius: 4px; box-shadow: 0 2px 4px rgba(34,197,94,0.3); display: inline-block;"></span>
+                        <span style="font-size: 12px; font-weight: bold; color: #475569; text-transform: uppercase;">Producto Fabricado</span>
+                    </div>
+                </div>
+            </div>
             
             <div style="overflow: auto; max-height: 60vh; border-radius: 8px; border: 1px solid #cbd5e1;">
-                <table class="calendario-table" style="width: 100%; border-collapse: collapse; min-width: 1000px;">
+                <table class="calendario-table" style="width: 100%; border-collapse: collapse; min-width: 1800px;">
                     <thead>
                         <tr>
-                            <th class="col-fija" style="width: 250px; text-align: left; z-index: 6;">SKU / Producto</th>
-                            {% for dia in dias_headers %}
-                                <th>{{ dia }}</th>
+                            <th class="col-fija" style="width: 250px; text-align: left; z-index: 6; vertical-align: middle;">SKU / Producto</th>
+                            
+                            {% for idx in range(dias_headers|length) %}
+                                {% set dia = dias_headers[idx] %}
+                                
+                                {% set sumas = namespace(pendiente=0, finalizado=0) %}
+                                {% for fila in datos_calendario %}
+                                    {% set sumas.pendiente = sumas.pendiente + fila.cantidades[idx].pendiente %}
+                                    {% set sumas.finalizado = sumas.finalizado + fila.cantidades[idx].finalizado %}
+                                {% endfor %}
+                                
+                                {% set gran_total = sumas.pendiente + sumas.finalizado %}
+                                
+                                <th style="padding: 10px 5px; vertical-align: top; min-width: 50px;">
+                                    <div style="font-size: 13px; margin-bottom: 8px; color: #1e293b;">{{ dia }}</div>
+                                    
+                                    {% if gran_total > 0 %}
+                                        <div style="display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center;">
+                                            <span style="background: #3b82f6; color: white; font-weight: 900; font-size: 12px; padding: 3px 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);" title="Total de unidades para este día">
+                                                {{ gran_total }}
+                                            </span>
+                                        </div>
+                                    {% else %}
+                                        <div style="color: #cbd5e1; font-size: 11px; margin-top: 5px;">-</div>
+                                    {% endif %}
+                                </th>
                             {% endfor %}
                         </tr>
                     </thead>
@@ -118,9 +168,16 @@
                                 </div>
                             </td>
                             {% for cant in fila.cantidades %}
-                                <td>
-                                    {% if cant > 0 %}
-                                        <span class="celda-cantidad">{{ cant }}</span>
+                                <td style="vertical-align: middle;">
+                                    {% if cant.pendiente > 0 or cant.finalizado > 0 %}
+                                        <div style="display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center;">
+                                            {% if cant.pendiente > 0 %}
+                                                <span class="celda-cantidad pendiente" title="Falta fabricar">{{ cant.pendiente }}</span>
+                                            {% endif %}
+                                            {% if cant.finalizado > 0 %}
+                                                <span class="celda-cantidad finalizado" title="Ya fabricado">{{ cant.finalizado }}</span>
+                                            {% endif %}
+                                        </div>
                                     {% else %}
                                         <span class="celda-vacia">-</span>
                                     {% endif %}
@@ -130,7 +187,7 @@
                         {% else %}
                         <tr>
                             <td colspan="{{ dias_headers|length + 1 }}" style="padding: 40px; text-align: center; color: #64748b;">
-                                📭 No hay producción programada para los próximos 15 días.
+                                📭 No hay producción programada para los próximos 30 días.
                             </td>
                         </tr>
                         {% endfor %}
@@ -544,6 +601,7 @@
             });
         }
 
+        
         // --- 🔥 FUNCIONES AJAX PARA EVITAR EL SALTO (EFECTO CANGURO) 🔥 ---
         function sincronizarTableroInmediato() {
             fetch(window.location.href)
@@ -552,7 +610,7 @@
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(html, 'text/html');
                     
-                    // Actualizamos las tarjetas
+                    // 1. Actualizamos las tarjetas
                     const nuevaGrid = doc.querySelector('.grid-ordenes');
                     const gridActual = document.querySelector('.grid-ordenes');
                     if (nuevaGrid && gridActual) {
@@ -561,11 +619,18 @@
                         updateTimers(); 
                     }
 
-                    // Actualizamos la columna derecha de totales
+                    // 2. Actualizamos la columna derecha de totales
                     const nuevosTotales = doc.querySelector('.column-totales');
                     const totalesActuales = document.querySelector('.column-totales');
                     if(nuevosTotales && totalesActuales) {
                         totalesActuales.innerHTML = nuevosTotales.innerHTML;
+                    }
+                    
+                    // 🔥 3. NUEVO: ACTUALIZAMOS EL CRONOGRAMA DE PRODUCCIÓN 🔥
+                    const nuevoCalendario = doc.querySelector('.calendario-table');
+                    const calendarioActual = document.querySelector('.calendario-table');
+                    if(nuevoCalendario && calendarioActual) {
+                        calendarioActual.innerHTML = nuevoCalendario.innerHTML;
                     }
                     
                     // Recalculamos el botón de anular por si algo se borró

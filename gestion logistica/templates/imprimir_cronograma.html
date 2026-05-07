@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cronograma de Producción - {{ hoy }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 10px; margin: 0; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { border: 1px solid #ccc; padding: 4px; text-align: center; overflow: hidden; }
+        th { background: #f0f0f0; }
+        .col-sku { width: 120px; text-align: left; font-weight: bold; }
+        .pendiente { color: #b45309; font-weight: bold; }
+        .finalizado { color: #16a34a; font-weight: bold; border-top: 1px solid #16a34a; }
+        @media print {
+            @page { size: landscape; margin: 0.5cm; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body onload="window.print()">
+    <h2 style="text-align: center;">Cronograma Mensual de Producción - Emitido el {{ hoy.strftime('%d/%m/%Y') }}</h2>
+    <table>
+        <thead>
+            <tr>
+                <th class="col-sku">Producto</th>
+                {% for h in headers %} <th>{{ h }}</th> {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in datos %}
+            <tr>
+                <td class="col-sku">{{ fila.sku }}</td>
+                {% for cant in fila.cantidades %}
+                <td>
+                    {% if cant.pendiente > 0 %}<div class="pendiente">{{ cant.pendiente }}</div>{% endif %}
+                    {% if cant.finalizado > 0 %}<div class="finalizado">{{ cant.finalizado }}</div>{% endif %}
+                    {% if cant.pendiente == 0 and cant.finalizado == 0 %}-{% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
