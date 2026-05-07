@@ -226,6 +226,7 @@ class OrdenProduccion(db.Model):
     origen_pedido = db.Column(db.String(50), default='Logística') # Logística o Planificación
     prioridad = db.Column(db.String(20), default='Normal')
     fecha_planificada = db.Column(db.Date)
+    observacion = db.Column(db.Text, nullable=True)
 
 
 class Reparacion(db.Model):
@@ -10542,8 +10543,8 @@ def importar_planificacion_excel():
             flash("❌ El Excel debe tener sí o sí las columnas 'SKU' y 'CANTIDAD'.", "error")
             return redirect(request.referrer)
 
-        # Nos traemos el catálogo para validar que los SKU existan
-        skus_validos = {p.sku: p.descripcion for p in Producto.query.filter_by(sector='logistica').all()}
+        # Nos traemos el catálogo para validar que los SKU existan (A prueba de minúsculas)
+        skus_validos = {str(p.sku).upper(): p.descripcion for p in Producto.query.filter_by(sector='logistica').all()}
         
         nuevas_ordenes = []
         errores = 0
@@ -10563,7 +10564,7 @@ def importar_planificacion_excel():
                 errores += 1
                 continue # Si el SKU no existe en la BD, lo salteamos
 
-            # Calculamos la fecha (por defecto hoy, o la que diga el Excel)
+            # 1. Calculamos la fecha (por defecto hoy, o la que diga el Excel)
             fecha_plan = datetime.now().date()
             if 'FECHA' in cols and row[cols['FECHA']] != '':
                 try:
@@ -10572,10 +10573,15 @@ def importar_planificacion_excel():
                 except:
                     pass
             
-            # Referencia / Motivo
+            # 2. Referencia / Motivo
             referencia = "Carga Masiva Excel"
             if 'REFERENCIA' in cols and str(row[cols['REFERENCIA']]).strip() != '':
                 referencia = str(row[cols['REFERENCIA']]).strip()
+
+            # 3. Observación (Notas de Producción)
+            obs_val = ""
+            if 'OBSERVACION' in cols and str(row[cols['OBSERVACION']]).strip() != '':
+                obs_val = str(row[cols['OBSERVACION']]).strip()
 
             nueva_orden = OrdenProduccion(
                 sku=sku,
@@ -10585,7 +10591,8 @@ def importar_planificacion_excel():
                 prioridad='Normal',
                 origen_pedido='Planificación',
                 lote_referencia=referencia,
-                fecha_planificada=fecha_plan
+                fecha_planificada=fecha_plan,
+                observacion=obs_val # 🔥 GUARDAMOS LA OBSERVACIÓN
             )
             nuevas_ordenes.append(nueva_orden)
 
@@ -10604,6 +10611,8 @@ def importar_planificacion_excel():
         flash(f"❌ Error al procesar el Excel: {str(e)}", "error")
 
     return redirect(request.referrer)
+
+
 @app.route('/descargar_plantilla_planificacion')
 @login_required
 def descargar_plantilla_planificacion():
@@ -10612,7 +10621,8 @@ def descargar_plantilla_planificacion():
         'SKU': ['SKU-EJEMPLO-01', 'SKU-EJEMPLO-02'],
         'CANTIDAD': [50, 100],
         'FECHA': [datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d')],
-        'REFERENCIA': ['Stock de seguridad', 'Pedido urgente']
+        'REFERENCIA': ['Pedido 105', 'Stock Base'],
+        'OBSERVACION': ['Sistema 38mm - Caño Reforzado', 'Sin cadena'] 
     }
     
     import pandas as pd
@@ -10637,6 +10647,17 @@ def descargar_plantilla_planificacion():
         as_attachment=True,
         download_name='Plantilla_Planificacion_Masiva.xlsx'
     )
+
+@app.route('/agregar_columna_observacion')
+def agregar_columna_observacion():
+    try:
+        from sqlalchemy import text
+        db.session.execute(text("ALTER TABLE orden_produccion ADD COLUMN observacion TEXT"))
+        db.session.commit()
+        return "<h1>✅ ¡Columna agregada!</h1><p>Ahora las órdenes pueden guardar observaciones.</p>"
+    except Exception as e:
+        return f"<h1>⚠️ Aviso</h1><p>Es probable que la columna ya exista: {str(e)}</p>"
+
 
 if __name__ == '__main__':
     print("Iniciando WMS Profesional en puerto 5001...")
