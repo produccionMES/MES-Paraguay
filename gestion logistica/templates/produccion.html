@@ -248,6 +248,10 @@
                 <span style="font-size: 24px;">🔍</span>
                 <input type="text" id="filtroPedidos" class="search-input" placeholder="Filtrar pedidos activos por SKU, descripción o referencia..." onkeyup="filtrarTarjetas()">
                 
+                <button type="button" id="btn-anular-masivo" style="display: none; background: #ef4444; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);" onclick="anularMasivo()">
+                    🗑️ Anular (<span id="count-anular">0</span>)
+                </button>
+
                 <a href="{{ url_for('imprimir_pedidos_produccion') }}" target="_blank" style="background: #dc2626; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);">
                     📄 Descargar PDF
                 </a>
@@ -265,6 +269,13 @@
                         
                         <div style="margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                
+                                {% if current_user.rol in ['admin', 'supervisor', 'supervisor_produccion', 'supervisor_produccio', 'jefe_produccion', 'planificacion', 'encargado'] %}
+                                    {% if orden.estado != 'Finalizado' %}
+                                        <input type="checkbox" class="chk-anular-masivo" value="{{ orden.id }}" style="transform: scale(1.4); margin-right: 5px; accent-color: #ef4444; cursor: pointer;" onchange="actualizarBtnAnular()">
+                                    {% endif %}
+                                {% endif %}
+
                                 {% if orden.origen_pedido == 'Planificación' %}
                                     <span style="background: #ede9fe; color: #6d28d9; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #c4b5fd;">📅 PLANIFICACIÓN</span>
                                 {% elif orden.origen_pedido == 'Ventas' %}
@@ -377,13 +388,11 @@
                                 </form>
 
                             {% elif orden.estado == 'Finalizado' %}
-                                {# --- SI EL PEDIDO ES DE PLANIFICACIÓN O DE VENTAS: Mostramos el Checkbox para Remito --- #}
                                 {% if orden.origen_pedido in ['Planificación', 'Ventas'] %}
                                     <label style="display: flex; align-items: center; justify-content: center; gap: 10px; background: white; border: 2px solid #8b5cf6; padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.2s;">
                                         <input type="checkbox" name="ordenes_seleccionadas" value="{{ orden.id }}" class="chk-remito" style="width: 22px; height: 22px; accent-color: #8b5cf6;" onchange="actualizarBannerMasivo()">
                                         <span style="font-weight: bold; color: #6d28d9; font-size: 15px;">Seleccionar para Remito</span>
                                     </label>
-                                {# --- SI EL PEDIDO ES DE LOGÍSTICA: Queda igual que antes sin cambios --- #}
                                 {% else %}
                                     <button type="button" class="btn-accion" style="background: #10b981; color: white; cursor: not-allowed; opacity: 0.8;" disabled>
                                         ✅ Listo (Esperando a Logística)
@@ -558,6 +567,9 @@
                     if(nuevosTotales && totalesActuales) {
                         totalesActuales.innerHTML = nuevosTotales.innerHTML;
                     }
+                    
+                    // Recalculamos el botón de anular por si algo se borró
+                    actualizarBtnAnular();
                 });
         }
 
@@ -846,6 +858,64 @@
             }
         }
 
+        // 🔥 LÓGICA DE ANULACIÓN MASIVA 🔥
+        function actualizarBtnAnular() {
+            let seleccionados = document.querySelectorAll('.chk-anular-masivo:checked').length;
+            let btn = document.getElementById('btn-anular-masivo');
+            let count = document.getElementById('count-anular');
+            
+            if (seleccionados > 0) {
+                count.innerText = seleccionados;
+                btn.style.display = 'flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
+        function anularMasivo() {
+            let checkboxes = document.querySelectorAll('.chk-anular-masivo:checked');
+            if(checkboxes.length === 0) return;
+
+            let motivo = prompt(`⚠️ Estás por ANULAR ${checkboxes.length} órdenes de producción.\n\nIngresá el motivo de anulación (Obligatorio):`);
+            if (motivo === null) return;
+            if (motivo.trim() === "") {
+                alert("❌ Operación cancelada. El motivo es obligatorio para anular.");
+                return;
+            }
+
+            let btn = document.getElementById('btn-anular-masivo');
+            let originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Procesando...';
+            btn.disabled = true;
+
+            let promesas = [];
+
+            checkboxes.forEach(chk => {
+                let id = chk.value;
+                let formData = new FormData();
+                formData.append("motivo_anulacion", motivo);
+
+                // Sacamos la URL exacta del formulario de anulación individual que ya existe en la tarjeta
+                let formIndividual = document.getElementById('btn-anular-' + id).closest('form');
+                if (formIndividual) {
+                    let p = fetch(formIndividual.action, { method: 'POST', body: formData });
+                    promesas.push(p);
+                }
+            });
+
+            Promise.all(promesas).then(() => {
+                sincronizarTableroInmediato();
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                btn.style.display = 'none';
+            }).catch(err => {
+                console.error(err);
+                alert("Hubo un error al anular algunas órdenes.");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
         // --- SINCRONIZACIÓN MODIFICADA PARA NO BORRAR LA BÚSQUEDA NI CERRAR MODALES ---
         function sincronizarTablero() {
             let textoBuscador = document.getElementById('filtroPedidos').value;
@@ -856,7 +926,7 @@
             let modalDespieceOpen = document.getElementById('modalDespiece') && document.getElementById('modalDespiece').style.display === 'flex';
             
             // 🔥 ESCUDO: Si hay cuadraditos tildados, no recargues la pantalla o se van a destildar solos
-            let hayCheckboxesMarcados = document.querySelectorAll('.chk-remito:checked').length > 0;
+            let hayCheckboxesMarcados = document.querySelectorAll('.chk-remito:checked, .chk-anular-masivo:checked').length > 0;
             
             if(modalBuscadorOpen || modalConfigOpen || modalCalendarioOpen || modalDespieceOpen || textoBuscador.length > 0 || document.activeElement.tagName === 'INPUT' || hayCheckboxesMarcados) return; 
 
