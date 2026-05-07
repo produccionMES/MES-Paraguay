@@ -304,6 +304,14 @@
             
             <div class="search-container">
                 <span style="font-size: 24px;">🔍</span>
+                
+                <select id="filtroLote" class="search-input" style="max-width: 250px; cursor: pointer; background: #f8fafc; border-color: #8b5cf6; color: #6d28d9;" onchange="filtrarTarjetas()">
+                    <option value="TODOS">📁 Todos los Proyectos</option>
+                    {% for lote in lotes_activos %}
+                        <option value="{{ lote }}">📁 {{ lote }}</option>
+                    {% endfor %}
+                </select>
+
                 <input type="text" id="filtroPedidos" class="search-input" placeholder="Filtrar pedidos activos por SKU, descripción o referencia..." onkeyup="filtrarTarjetas()">
                 
                 <button type="button" id="btn-anular-masivo" style="display: none; background: #ef4444; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);" onclick="anularMasivo()">
@@ -323,7 +331,8 @@
                     {% endif %}
                     
                     <div class="card-orden {% if orden.estado == 'En Proceso' %}en-proceso{% elif orden.estado == 'Finalizado' %}finalizado{% else %}pendiente{% endif %}"
-                         style="{% if es_futura %}opacity: 0.6; filter: grayscale(1); background: #f1f5f9; border-top: 5px solid #cbd5e1 !important;{% endif %}">
+                        data-lote="{{ orden.lote_referencia }}" 
+                        style="{% if es_futura %}opacity: 0.6; filter: grayscale(1); background: #f1f5f9; border-top: 5px solid #cbd5e1 !important;{% endif %}">
                         
                         <div style="margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -588,20 +597,28 @@
         }
 
         // --- 🔥 LÓGICA DE BÚSQUEDA RÁPIDA DE TARJETAS 🔥 ---
+        // --- 🔥 LÓGICA DE BÚSQUEDA Y FILTRO DE PROYECTOS 🔥 ---
         function filtrarTarjetas() {
-            let input = document.getElementById('filtroPedidos').value.toUpperCase();
+            let inputTexto = document.getElementById('filtroPedidos').value.toUpperCase();
+            let inputLote = document.getElementById('filtroLote').value;
             let tarjetas = document.querySelectorAll('.card-orden');
 
             tarjetas.forEach(tarjeta => {
                 let textoTarjeta = tarjeta.innerText.toUpperCase();
-                if (textoTarjeta.includes(input)) {
+                let loteTarjeta = tarjeta.getAttribute('data-lote');
+                
+                // Chequea si coincide con el texto escrito
+                let coincideTexto = textoTarjeta.includes(inputTexto);
+                // Chequea si coincide con la carpeta seleccionada
+                let coincideLote = (inputLote === 'TODOS' || loteTarjeta === inputLote);
+
+                if (coincideTexto && coincideLote) {
                     tarjeta.style.display = '';
                 } else {
                     tarjeta.style.display = 'none';
                 }
             });
         }
-
         
         // --- 🔥 FUNCIONES AJAX PARA EVITAR EL SALTO (EFECTO CANGURO) 🔥 ---
         function sincronizarTableroInmediato() {

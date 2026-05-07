@@ -147,6 +147,7 @@ class Producto(db.Model):
     
     # 🔥 Agregamos index=True acá (Porque siempre filtramos por Logística o Posventa)
     sector = db.Column(db.String(50), default='logistica', index=True)
+    peso_kg = db.Column(db.Float, default=0.0)
 
     empresa = db.Column(db.String(100))
     familia = db.Column(db.String(100))
@@ -409,6 +410,9 @@ class ConfiguracionProduccion(db.Model):
     desayuno_inicio = db.Column(db.String(5), default="09:00") 
     desayuno_fin = db.Column(db.String(5), default="09:30")   
     sku_maestro_a_medida = db.Column(db.String(50), default="CORT9999")
+    peso_pallet = db.Column(db.Float, default=0.0)
+    medidas_pallet = db.Column(db.String(50), default='120x100x15')
+    limite_peso_pallet = db.Column(db.Float, default=900.0)
 
 class PedidoCliente(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1779,6 +1783,11 @@ def actualizar_db():
             db.session.execute(text("ALTER TABLE producto ADD COLUMN modelo VARCHAR(100)"))
         except: pass
 
+        try:
+            db.session.execute(text("ALTER TABLE producto ADD COLUMN peso_kg FLOAT DEFAULT 0.0"))
+            db.session.commit()
+        except: pass
+
         # 4. Items (observaciones y estado para Posventa) 
         try:
             db.session.execute(text("ALTER TABLE item ADD COLUMN observaciones VARCHAR(200)"))
@@ -1838,6 +1847,11 @@ def actualizar_db():
         except: pass
 
         try:
+            db.session.execute(text("ALTER TABLE configuracion_produccion ADD COLUMN limite_peso_pallet FLOAT DEFAULT 900.0"))
+            db.session.commit()
+        except: pass
+
+        try:
             db.session.execute(text("ALTER TABLE rack ADD COLUMN tipo VARCHAR(50) DEFAULT 'estante'"))
             db.session.commit()
         except: pass
@@ -1873,6 +1887,13 @@ def actualizar_db():
         try:
             db.session.execute(text("ALTER TABLE rack ADD COLUMN color VARCHAR(20)"))
         except: pass
+
+        try:
+            db.session.execute(text("ALTER TABLE configuracion_produccion ADD COLUMN peso_pallet FLOAT DEFAULT 0.0"))
+            db.session.execute(text("ALTER TABLE configuracion_produccion ADD COLUMN medidas_pallet VARCHAR(50) DEFAULT '120x100x15'"))
+            db.session.commit()
+        except: pass
+        
 
         # 🔥 NUEVA COLUMNA PARA PROGRAMACIÓN DE FECHAS DE PRODUCCIÓN
         try:
@@ -2559,14 +2580,15 @@ def descargar_plantilla_catalogo():
     import io
     from flask import send_file
 
+    # 🔥 NUEVO: Agregamos PESO (KG) a las columnas
     columnas = ['SKU', 'DESCRIPCION', 'EMPRESA', 'EAN', 'FAMILIA', 
-                'ALTO (cm)', 'ANCHO (cm)', 'PROFUNDIDAD (cm)', 
+                'ALTO (cm)', 'ANCHO (cm)', 'PROFUNDIDAD (cm)', 'PESO (KG)',
                 'UNIDADES X BULTO', 'BULTOS X PISO', 'PISOS X PALLET', 'BULTOS X PALLET']
     
     ejemplo = {
         'SKU': 'CORT0001', 'DESCRIPCION': 'CORTINA ROLLER BLACKOUT 120X150', 'EMPRESA': 'MI EMPRESA', 
         'EAN': '7790000000000', 'FAMILIA': 'CORTINAS', 
-        'ALTO (cm)': 150.0, 'ANCHO (cm)': 120.0, 'PROFUNDIDAD (cm)': 5.5, 
+        'ALTO (cm)': 150.0, 'ANCHO (cm)': 120.0, 'PROFUNDIDAD (cm)': 5.5, 'PESO (KG)': 2.5,
         'UNIDADES X BULTO': 4, 'BULTOS X PISO': 10, 'PISOS X PALLET': 5, 'BULTOS X PALLET': 50
     }
     
@@ -4054,6 +4076,9 @@ def produccion():
         OrdenProduccion.fecha_solicitud.asc()
     ).all()
 
+    lotes_activos = list(set([o.lote_referencia for o in ordenes_activas if o.lote_referencia]))
+    lotes_activos.sort()
+
     # ================================================================
     # 🔥 NUEVO MOTOR AGREGADOR DE TOTALES 🔥
     # ================================================================
@@ -4083,8 +4108,6 @@ def produccion():
     resumen_totales_ordenado = dict(sorted(resumen_totales.items()))
 
     # ================================================================
-    
-    # ... (Todo el resto de tu lógica del cronograma queda EXACTAMENTE IGUAL) ...
     config_alm = ConfiguracionProduccion.query.first()
     
     # ================================================================
@@ -4138,7 +4161,8 @@ def produccion():
                            hoy=hoy_obj, 
                            config_alm=config_alm,
                            dias_headers=dias_headers, 
-                           datos_calendario=datos_calendario)
+                           datos_calendario=datos_calendario,
+                           lotes_activos=lotes_activos)
 
 @app.route('/produccion/cambiar_estado_admin/<int:id>', methods=['POST'])
 @login_required
@@ -6220,6 +6244,10 @@ def importar_productos():
             alto_val = get_num(row, ['alto', 'altocm'])
             ancho_val = get_num(row, ['ancho', 'anchocm'])
             prof_val = get_num(row, ['profundidad', 'profundidadcm', 'largo'])
+            
+            # 🔥 NUEVO: Atrapamos el peso 🔥
+            peso_val = get_num(row, ['peso', 'pesokg'])
+
             un_x_bulto_val = get_num(row, ['unidadesxbulto', 'uxb'])
             bultos_x_piso_val = get_num(row, ['bultosxpiso', 'bxpiso'])
             pisos_x_pallet_val = get_num(row, ['pisosxpallet', 'pxpallet'])
@@ -6238,6 +6266,7 @@ def importar_productos():
                 'alto_cm': alto_val,
                 'ancho_cm': ancho_val,
                 'profundidad_cm': prof_val,
+                'peso_kg': peso_val, # 🔥 LO INYECTAMOS ACÁ 🔥
                 'unidades_x_bulto': un_x_bulto_val,
                 'bultos_x_piso': bultos_x_piso_val,
                 'pisos_x_pallet': pisos_x_pallet_val,
@@ -10801,28 +10830,217 @@ def imprimir_cronograma_pdf():
 @app.route('/produccion/packing')
 @login_required
 def packing_list():
-    # Seguridad: Mismos roles que Producción
-    roles_permitidos = ['admin', 'supervisor_produccion', 'supervisor_produccio', 'jefe_produccion', 'planificacion', 'encargado']
+    roles_permitidos = ['admin', 'supervisor_produccion', 'jefe_produccion', 'planificacion', 'encargado']
     if current_user.rol not in roles_permitidos:
         flash("🚫 Acceso denegado.", "error")
         return redirect(url_for('produccion'))
 
-    # Traemos las órdenes activas
-    ordenes = OrdenProduccion.query.filter(
+    lote_filtro = request.args.get('lote')
+    estados_activos = ['Pendiente', 'En Proceso', 'Finalizado']
+    
+    todos_los_lotes = db.session.query(OrdenProduccion.lote_referencia).filter(
+        OrdenProduccion.estado.in_(estados_activos)
+    ).distinct().all()
+    
+    lista_lotes = sorted([l[0] for l in todos_los_lotes if l[0]])
+
+    sku_datos = {}
+    if lote_filtro:
+        ordenes = OrdenProduccion.query.filter(
+            OrdenProduccion.lote_referencia == lote_filtro,
+            OrdenProduccion.estado.in_(estados_activos)
+        ).all()
+        
+        for o in ordenes:
+            if o.sku not in sku_datos:
+                prod = Producto.query.filter_by(sku=o.sku, sector='logistica').first()
+                peso = prod.peso_kg if prod and prod.peso_kg else 0.0
+                # 🔥 NUEVO: Separamos lo total de lo que ya está Finalizado 🔥
+                sku_datos[o.sku] = {'cant_total': 0, 'cant_finalizada': 0, 'peso': peso, 'desc': o.descripcion}
+            
+            sku_datos[o.sku]['cant_total'] += o.cantidad
+            if o.estado == 'Finalizado':
+                sku_datos[o.sku]['cant_finalizada'] += o.cantidad
+
+    config_prod = ConfiguracionProduccion.query.first()
+
+    return render_template('packing.html', 
+                           skus=sku_datos, 
+                           lotes=lista_lotes, 
+                           lote_seleccionado=lote_filtro,
+                           config_prod=config_prod)
+
+@app.route('/produccion/guardar_config_pallet', methods=['POST'])
+@login_required
+def guardar_config_pallet():
+    if current_user.rol not in ['admin', 'supervisor_produccion', 'supervisor_produccio', 'jefe_produccion', 'planificacion', 'encargado']:
+        flash("🚫 Acceso denegado.", "error")
+        return redirect(request.referrer)
+    
+    peso = request.form.get('peso_pallet', 0)
+    medidas = request.form.get('medidas_pallet', '120x100x15')
+    limite = request.form.get('limite_peso', 900) # 🔥 Capturamos el límite
+    
+    config = ConfiguracionProduccion.query.first()
+    try:
+        if not config:
+            config = ConfiguracionProduccion(peso_pallet=float(peso), medidas_pallet=medidas, limite_peso_pallet=float(limite))
+            db.session.add(config)
+        else:
+            config.peso_pallet = float(peso)
+            config.medidas_pallet = medidas
+            config.limite_peso_pallet = float(limite) # 🔥 Actualizamos el límite
+        db.session.commit()
+        flash("⚙️ Configuración actualizada correctamente.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ Error al guardar: {str(e)}", "error")
+    return redirect(url_for('packing_list'))
+
+@app.route('/produccion/finalizar_packing', methods=['POST'])
+@login_required
+def finalizar_packing():
+    data = request.get_json()
+    lote_nombre = data.get('lote')
+    pallets = data.get('pallets', [])
+
+    if not lote_nombre or not pallets:
+        return jsonify({'status': 'error', 'message': 'No hay datos para procesar.'}), 400
+
+    skus_embalados = {}
+    for p in pallets:
+        for item in p.get('items', []):
+            sku = item.get('sku')
+            try: cant = int(item.get('cantidad', 0))
+            except: cant = 0
+            if sku and cant > 0:
+                skus_embalados[sku] = skus_embalados.get(sku, 0) + cant
+
+    if not skus_embalados:
+        return jsonify({'status': 'error', 'message': 'El pallet está vacío o la cantidad es 0.'}), 400
+
+    ordenes_activas = OrdenProduccion.query.filter(
+        OrdenProduccion.lote_referencia == lote_nombre,
         OrdenProduccion.estado.in_(['Pendiente', 'En Proceso', 'Finalizado'])
     ).all()
 
-    # 🔥 NUEVO: Agrupamos las cantidades totales por SKU
-    sku_cantidades = {}
-    for o in ordenes:
-        if o.sku not in sku_cantidades:
-            sku_cantidades[o.sku] = 0
-        sku_cantidades[o.sku] += o.cantidad
+    # =========================================================================
+    # 🔥 CANDADO DE SEGURIDAD: VERIFICAMOS QUE HAYA STOCK FINALIZADO 🔥
+    # =========================================================================
+    for sku, cant_embalada in skus_embalados.items():
+        # Sumamos cuánto hay FINALIZADO de ese SKU
+        total_finalizado_sku = sum(o.cantidad for o in ordenes_activas if o.sku == sku and o.estado == 'Finalizado')
+        
+        if cant_embalada > total_finalizado_sku:
+            return jsonify({
+                'status': 'error', 
+                'message': f'❌ ERROR: Estás intentando embalar {cant_embalada} de "{sku}", pero solo hay {total_finalizado_sku} finalizados en fábrica.'
+            }), 400
 
-    # Lo ordenamos alfabéticamente para que el menú desplegable quede prolijo
-    skus_ordenados = dict(sorted(sku_cantidades.items()))
+    ultimo_id = Transferencia.query.order_by(Transferencia.id.desc()).first()
+    next_id = (ultimo_id.id + 1) if ultimo_id else 1
+    nro_remito_base = f"R-26-{next_id:04d}"
 
-    return render_template('packing.html', skus=skus_ordenados)
+    idx = 1
+    for sku, cant_embalada in skus_embalados.items():
+        prod = Producto.query.filter_by(sku=sku, sector='logistica').first()
+        desc = prod.descripcion if prod else "S/D"
+
+        nro_linea = f"{nro_remito_base}-{idx}"
+        nueva_transf = Transferencia(
+            remito_nro=nro_linea, sku=sku, descripcion=desc,
+            cantidad=cant_embalada, estado_calidad='apto', usuario_envia=current_user.username
+        )
+        db.session.add(nueva_transf)
+        idx += 1
+
+        log = Movimiento(
+            tipo='movimiento', sku=sku, cantidad=cant_embalada,
+            origen=f"FÁBRICA (Packing {lote_nombre})",
+            transporte=f"REMITO: {nro_remito_base}",
+            usuario=current_user.username, sector='produccion'
+        )
+        db.session.add(log)
+
+        # 🔥 AHORA SOLO DESCONTAMOS DE LAS TARJETAS QUE ESTÁN "FINALIZADO" 🔥
+        ordenes_finalizadas = [o for o in ordenes_activas if o.sku == sku and o.estado == 'Finalizado']
+        restante_a_descontar = cant_embalada
+
+        for o in ordenes_finalizadas:
+            if restante_a_descontar <= 0: break
+            
+            if o.cantidad <= restante_a_descontar:
+                restante_a_descontar -= o.cantidad
+                o.estado = 'Entregado'
+                o.operario_fin = current_user.username
+                o.fecha_fin = o.fecha_fin or hora_argentina()
+            else:
+                nueva_orden_entregada = OrdenProduccion(
+                    sku=o.sku, descripcion=o.descripcion, cantidad=restante_a_descontar,
+                    estado='Entregado', prioridad=o.prioridad, origen_pedido=o.origen_pedido,
+                    lote_referencia=o.lote_referencia, fecha_planificada=o.fecha_planificada,
+                    fecha_inicio=o.fecha_inicio, operario_inicio=o.operario_inicio,
+                    fecha_fin=hora_argentina(), operario_fin=current_user.username,
+                    observacion=o.observacion
+                )
+                db.session.add(nueva_orden_entregada)
+                
+                o.cantidad -= restante_a_descontar
+                restante_a_descontar = 0
+
+    db.session.commit()
+    url_remito = url_for('ver_remito_consolidado', nro_remito=nro_remito_base)
+    
+    return jsonify({
+        'status': 'success', 
+        'message': f'Packing finalizado. Remito {nro_remito_base} generado.',
+        'redirect_url': url_remito
+    })
+
+@app.route('/produccion/imprimir_packing_list', methods=['POST'])
+@login_required
+def imprimir_packing_list():
+    # Recibimos los datos del JSON (Lote y Pallets)
+    data = request.get_json()
+    lote = data.get('lote', 'S/N')
+    pallets_raw = data.get('pallets', [])
+    
+    # Preparamos la lista para el diseño
+    pallets_procesados = []
+    gran_total_peso = 0
+    
+    for p in pallets_raw:
+        items_p = []
+        peso_pallet_madera = 0 # Lo calcularemos restando si fuera necesario, o lo recibimos
+        
+        for item in p.get('items', []):
+            sku = item.get('sku')
+            cant = int(item.get('cantidad', 0))
+            
+            # Buscamos el peso unitario en el catálogo
+            prod = Producto.query.filter_by(sku=sku, sector='logistica').first()
+            p_unit = prod.peso_kg if prod and prod.peso_kg else 0.0
+            p_total_item = p_unit * cant
+            
+            items_p.append({
+                'sku': sku,
+                'desc': prod.descripcion if prod else "S/D",
+                'cant': cant,
+                'peso_unit': p_unit,
+                'peso_total': p_total_item
+            })
+            
+        pallets_procesados.append({
+            'numero': p.get('numero'),
+            'medidas': p.get('medidas'),
+            'peso_completo': p.get('peso'), # Es el texto "XXX kg" que viene de la pantalla
+            'items': items_p
+        })
+
+    return render_template('imprimir_packing_list.html', 
+                           lote=lote, 
+                           pallets=pallets_procesados, 
+                           hoy=hora_argentina())
 
 if __name__ == '__main__':
     print("Iniciando WMS Profesional en puerto 5001...")

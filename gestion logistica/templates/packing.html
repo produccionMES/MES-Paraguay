@@ -10,12 +10,18 @@
         .btn-nav { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.2s; border: none; cursor: pointer; }
         .btn-nav:hover { background: #2563eb; }
         
+        .selector-lote { background: #ede9fe; padding: 20px; border-radius: 12px; border: 2px solid #8b5cf6; margin-bottom: 20px; display: flex; align-items: center; gap: 20px; }
+        .lote-input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 2px solid #ddd6fe; font-size: 16px; font-weight: bold; outline: none; }
+
         .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
         
         .btn-nuevo-pallet { background: #10b981; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); }
         .btn-nuevo-pallet:hover { background: #059669; transform: scale(1.02); }
 
-        .grid-pallets { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px; }
+        .btn-config { background: #cbd5e1; color: #334155; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px;}
+        .btn-config:hover { background: #94a3b8; color: white; }
+
+        .grid-pallets { display: grid; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); gap: 20px; }
         
         .pallet-card { background: white; border-radius: 12px; border: 2px solid #cbd5e1; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column; transition: 0.2s; }
         .pallet-header { background: #f1f5f9; padding: 15px; border-bottom: 2px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; }
@@ -23,21 +29,38 @@
         .pallet-body { padding: 15px; flex-grow: 1; }
         
         .info-pallet { display: flex; gap: 15px; margin-bottom: 15px; }
-        .info-box { background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; flex: 1; }
+        .info-box { background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; flex: 1; transition: 0.3s; }
+        .info-box.total-box { background: #fef3c7; border-color: #fde68a; display: flex; flex-direction: column; justify-content: center;}
+        
+        .info-box.exceso { background: #fee2e2 !important; border-color: #f87171 !important; animation: shake 0.5s ease-in-out; }
+        .info-box.exceso .total-text { color: #dc2626 !important; }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
         .info-box label { display: block; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
         .info-box input { width: 100%; border: none; background: transparent; font-weight: bold; font-size: 14px; color: #0f172a; outline: none; }
+        .total-text { font-size: 18px; font-weight: 900; color: #b45309; margin: 0; }
+        .tara-text { font-size: 11px; color: #d97706; font-weight: bold; }
 
         .table-items { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
         .table-items th { text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
-        .table-items td { padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
-        .table-items select, .table-items input { width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; font-weight: bold; outline: none; transition: 0.2s; }
-        .table-items input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        .table-items td { padding: 8px 5px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .table-items select, .table-items input { width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; font-weight: bold; outline: none; box-sizing: border-box; }
+        
+        .celda-peso { font-size: 13px; font-weight: bold; color: #475569; text-align: center; }
         
         .btn-add-item { width: 100%; background: #e0f2fe; color: #0284c7; border: 2px dashed #bae6fd; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .btn-add-item:hover { background: #bae6fd; }
         .btn-delete { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 16px; }
 
-        /* Lista de SKUs oculta para usar en JS */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); position: relative;}
+        .btn-close-modal { position: absolute; top: 15px; right: 15px; background: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+
         #skus-data { display: none; }
     </style>
 </head>
@@ -50,35 +73,199 @@
         </div>
     </div>
 
-    <div id="skus-data">
-        <option value="">Seleccionar SKU...</option>
-        {% for sku, cantidad in skus.items() %}
-            <option value="{{ sku }}" data-cant="{{ cantidad }}">{{ sku }} (Hay {{ cantidad }}u.)</option>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="background-color: #d1e7dd; color: #0f5132; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; text-align: center;">
+              {{ message }}
+          </div>
         {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="selector-lote">
+        <div style="font-size: 30px;">📂</div>
+        <div style="flex-grow: 1;">
+            <label style="display: block; font-size: 12px; font-weight: bold; color: #6d28d9; text-transform: uppercase;">Seleccionar Proyecto / Orden para embalar:</label>
+            <select class="lote-input" onchange="window.location.href='?lote=' + this.value">
+                <option value="">-- Elegir un Lote/Referencia --</option>
+                {% for l in lotes %}
+                    <option value="{{ l }}" {% if lote_seleccionado == l %}selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if lote_seleccionado %}
+            <div style="background: white; padding: 10px 20px; border-radius: 8px; border: 2px solid #8b5cf6; text-align: center;">
+                <span style="display: block; font-size: 10px; color: #64748b;">PRODUCTOS EN ESTE LOTE</span>
+                <strong style="font-size: 20px; color: #7c3aed;">{{ skus|length }}</strong>
+            </div>
+        {% endif %}
+    </div>
+
+    <div id="skus-data">
+        <option value="" data-cant="0" data-finalizada="0" data-peso="0">Seleccionar SKU...</option>
+        {% for sku, datos in skus.items() %}
+            <option value="{{ sku }}" data-cant="{{ datos.cant_total }}" data-finalizada="{{ datos.cant_finalizada }}" data-peso="{{ datos.peso }}">
+                {{ sku }}
+            </option>
+        {% endfor %}
+    </div>
+
+    <div id="modalConfigPallet" class="modal-overlay" onclick="if(event.target === this) this.style.display='none'">
+        <div class="modal-content">
+            <button class="btn-close-modal" onclick="document.getElementById('modalConfigPallet').style.display='none'">✖</button>
+            <h3 style="margin: 0 0 15px 0; color: #0f172a;">⚙️ Configuración Base</h3>
+            
+            <form action="{{ url_for('guardar_config_pallet') }}" method="POST">
+                <div style="margin-bottom: 12px;">
+                    <label style="font-size: 11px; font-weight: bold; color: #475569; text-transform: uppercase;">Peso de la Madera (Tara en kg)</label>
+                    <input type="number" step="0.1" name="peso_pallet" value="{{ config_prod.peso_pallet if config_prod else '0' }}" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-weight: bold;" required>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <label style="font-size: 11px; font-weight: bold; color: #475569; text-transform: uppercase;">Dimensiones (L x A x H cm)</label>
+                    <input type="text" name="medidas_pallet" value="{{ config_prod.medidas_pallet if config_prod else '120x100x15' }}" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-weight: bold;" required>
+                </div>
+
+                <div style="margin-bottom: 20px; background: #fff1f2; padding: 10px; border-radius: 8px; border: 1px solid #fecaca;">
+                    <label style="font-size: 11px; font-weight: bold; color: #be123c; text-transform: uppercase;">Límite de Alerta de Peso (kg)</label>
+                    <input type="number" step="1" name="limite_peso" value="{{ config_prod.limite_peso_pallet if config_prod and config_prod.limite_peso_pallet else '900' }}" style="width: 100%; padding: 10px; border: 2px solid #fb7185; border-radius: 6px; box-sizing: border-box; font-weight: bold; color: #9f1239;" required>
+                    <p style="font-size: 10px; color: #e11d48; margin: 5px 0 0 0;">Se pondrá en rojo al superar este valor.</p>
+                </div>
+
+                <button type="submit" style="width: 100%; background: #10b981; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer;">💾 Guardar Todo</button>
+            </form>
+        </div>
     </div>
 
     <div class="header-actions">
         <div>
             <h3 style="margin: 0 0 5px 0; color: #0f172a;">Gestión de Pallets</h3>
-            <p style="margin: 0; font-size: 13px; color: #64748b;">Creá los pallets y asigná qué productos van adentro de cada uno.</p>
+            <p style="margin: 0; font-size: 13px; color: #64748b;">Proyecto actual: <strong>{{ lote_seleccionado if lote_seleccionado else 'Ninguno seleccionado' }}</strong></p>
         </div>
-        <button class="btn-nuevo-pallet" onclick="crearPallet()">+ AGREGAR PALLET</button>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-config" onclick="document.getElementById('modalConfigPallet').style.display='flex'">⚙️ Ajustes</button>
+            {% if lote_seleccionado %}
+                <button class="btn-nuevo-pallet" onclick="crearPallet()">+ AGREGAR PALLET</button>
+                <button class="btn-nuevo-pallet" style="background:#2563eb; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);" onclick="finalizarTodo()">💾 FINALIZAR Y GENERAR REMITO</button>
+            {% endif %}
+        </div>
     </div>
 
-    <div class="grid-pallets" id="contenedor-pallets">
-        </div>
+    <div class="grid-pallets" id="contenedor-pallets"></div>
 
     <script>
         let contadorPallets = 0;
         const opcionesSkus = document.getElementById('skus-data').innerHTML;
+        
+        const TARA_BASE = parseFloat("{{ config_prod.peso_pallet if config_prod else '0' }}") || 0;
+        const MEDIDAS_BASE = "{{ config_prod.medidas_pallet if config_prod else '120x100x15' }}";
+        const LIMITE_PESO = parseFloat("{{ config_prod.limite_peso_pallet if config_prod and config_prod.limite_peso_pallet else '900' }}");
+        const LOTE_ACTUAL = "{{ lote_seleccionado }}";
 
-        function crearPallet() {
+        // =========================================================
+        // 🔥 MAGIA: CALCULADORA DE SALDO RESTANTE Y BLOQUEOS
+        // =========================================================
+        function actualizarOpcionesDisponibles() {
+            const todosLosSelects = document.querySelectorAll('.select-sku');
+            let usoPorSku = {};
+
+            // 1. Contamos cuánto se está usando de cada SKU en toda la pantalla
+            document.querySelectorAll('tbody tr').forEach(tr => {
+                const select = tr.querySelector('.select-sku');
+                const input = tr.querySelector('.input-cant');
+                if (select && select.value) {
+                    usoPorSku[select.value] = (usoPorSku[select.value] || 0) + (parseInt(input.value) || 0);
+                }
+            });
+
+            // 2. Actualizamos cada desplegable y el límite de los inputs
+            document.querySelectorAll('tbody tr').forEach(tr => {
+                const select = tr.querySelector('.select-sku');
+                const inputCant = tr.querySelector('.input-cant');
+                const skuElegido = select.value;
+
+                Array.from(select.options).forEach(opcion => {
+                    if (opcion.value === "") return;
+
+                    const masterOpt = document.querySelector(`#skus-data option[value="${opcion.value}"]`);
+                    const cantTotal = parseInt(masterOpt.getAttribute('data-cant')) || 0;
+                    const cantFinalizada = parseInt(masterOpt.getAttribute('data-finalizada')) || 0;
+                    
+                    // ¿Cuánto se usó en OTRAS filas?
+                    const usoGlobal = usoPorSku[opcion.value] || 0;
+                    const usoEnEstaFila = (skuElegido === opcion.value) ? (parseInt(inputCant.value) || 0) : 0;
+                    const usoEnOtrasFilas = usoGlobal - usoEnEstaFila;
+                    
+                    const restanteParaEstaFila = cantTotal - usoEnOtrasFilas;
+
+                    // Definir icono visual según si están terminadas o en proceso
+                    let icono = "🚧";
+                    if (cantFinalizada === cantTotal) icono = "✅";
+                    else if (cantFinalizada > 0) icono = "⏳";
+
+                    // Bloquear solo si se agotaron y no es el que tengo seleccionado
+                    if (restanteParaEstaFila <= 0 && skuElegido !== opcion.value) {
+                        opcion.disabled = true;
+                        opcion.text = `🔒 ${opcion.value} (Agotado)`;
+                        opcion.style.color = "#94a3b8";
+                    } else {
+                        opcion.disabled = false;
+                        opcion.text = `${icono} ${opcion.value} (Quedan: ${restanteParaEstaFila} de ${cantTotal})`;
+                        opcion.style.color = "";
+                    }
+
+                    // Limitar el casillero de cantidad para que no pongan de más
+                    if (skuElegido === opcion.value) {
+                        inputCant.max = restanteParaEstaFila;
+                        // Si el usuario tipeó un número mayor al disponible, lo bajamos a la fuerza
+                        if (parseInt(inputCant.value) > restanteParaEstaFila) {
+                            inputCant.value = restanteParaEstaFila;
+                            inputCant.style.backgroundColor = '#fee2e2'; // Destello rojo
+                            setTimeout(() => inputCant.style.backgroundColor = 'transparent', 500);
+                        }
+                    }
+                });
+            });
+        }
+
+        // =========================================================
+        // BORRADOR EN MEMORIA
+        // =========================================================
+        function guardarBorrador() {
+            if (!LOTE_ACTUAL) return;
+
+            const cards = document.querySelectorAll('.pallet-card');
+            let dataPallets = [];
+
+            cards.forEach(card => {
+                let items = [];
+                card.querySelectorAll('tbody tr').forEach(tr => {
+                    const sku = tr.querySelector('.select-sku').value;
+                    const cant = tr.querySelector('.input-cant').value;
+                    if(sku) items.push({ sku: sku, cantidad: cant });
+                });
+
+                dataPallets.push({
+                    medidas: card.querySelector('.input-medidas').value,
+                    items: items
+                });
+            });
+
+            localStorage.setItem('borrador_packing_' + LOTE_ACTUAL, JSON.stringify(dataPallets));
+        }
+
+        // =========================================================
+        // CREACIÓN DE PALLETS
+        // =========================================================
+        function crearPallet(datosRestaurados = null) {
             contadorPallets++;
             const palletId = contadorPallets;
-            
             const div = document.createElement('div');
             div.className = 'pallet-card';
             div.id = `pallet-${palletId}`;
+            
+            let medidasInput = datosRestaurados ? datosRestaurados.medidas : MEDIDAS_BASE;
             
             div.innerHTML = `
                 <div class="pallet-header">
@@ -87,88 +274,223 @@
                 </div>
                 <div class="pallet-body">
                     <div class="info-pallet">
-                        <div class="info-box">
-                            <label>Peso (Kg)</label>
-                            <input type="number" placeholder="Ej: 150">
+                        <div class="info-box total-box" id="box-total-${palletId}">
+                            <label>Peso Total</label>
+                            <p class="total-text" id="peso-total-${palletId}">${TARA_BASE.toFixed(2)} kg</p>
+                            <span class="tara-text">(Tara: ${TARA_BASE} kg)</span>
                         </div>
                         <div class="info-box">
                             <label>Medidas (cm)</label>
-                            <input type="text" placeholder="L x A x H">
+                            <input type="text" class="input-medidas" value="${medidasInput}" oninput="guardarBorrador()">
                         </div>
                     </div>
                     
                     <table class="table-items" id="tabla-items-${palletId}">
                         <thead>
                             <tr>
-                                <th style="width: 60%;">Producto (SKU)</th>
-                                <th style="width: 25%; text-align: center;">Cant.</th>
-                                <th style="width: 15%; text-align: center;"></th>
+                                <th style="width: 40%;">SKU</th>
+                                <th style="width: 20%; text-align: center;">Cant.</th>
+                                <th style="width: 15%; text-align: center;">P. Un.</th>
+                                <th style="width: 15%; text-align: center;">SubT.</th>
+                                <th style="width: 10%;"></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            </tbody>
+                        <tbody></tbody>
                     </table>
-                    
                     <button class="btn-add-item" onclick="agregarFila(${palletId})">+ Agregar Producto</button>
                 </div>
             `;
-            
             document.getElementById('contenedor-pallets').appendChild(div);
-            // Agregamos una fila por defecto
-            agregarFila(palletId);
+            
+            if (datosRestaurados && datosRestaurados.items && datosRestaurados.items.length > 0) {
+                datosRestaurados.items.forEach(item => {
+                    agregarFila(palletId, item);
+                });
+            } else {
+                agregarFila(palletId);
+            }
+            guardarBorrador();
         }
 
-        function agregarFila(palletId) {
+        function agregarFila(palletId, itemRestaurado = null) {
             const tbody = document.querySelector(`#tabla-items-${palletId} tbody`);
             const tr = document.createElement('tr');
-            
-            // 🔥 MODIFICADO: Agregamos el onchange al select 🔥
             tr.innerHTML = `
-                <td>
-                    <select class="select-sku" onchange="autoCompletarCantidad(this)">
-                        ${opcionesSkus}
-                    </select>
-                </td>
-                <td>
-                    <input type="number" min="1" value="1" style="text-align: center; background: #fffbeb;" class="input-cant">
-                </td>
-                <td style="text-align: center;">
-                    <button class="btn-delete" onclick="this.closest('tr').remove()">🗑️</button>
-                </td>
+                <td><select class="select-sku" onchange="actualizarFila(this, ${palletId})" style="width: 100%; border:none; outline:none; font-weight:bold;">${opcionesSkus}</select></td>
+                <td><input type="number" min="1" class="input-cant" oninput="cambioManualCant(${palletId})" style="text-align: center;"></td>
+                <td class="celda-peso td-peso-un">0.00</td>
+                <td class="celda-peso td-peso-sub">0.00</td>
+                <td style="text-align: center;"><button class="btn-delete" onclick="borrarFila(this, ${palletId})">🗑️</button></td>
             `;
             tbody.appendChild(tr);
+
+            if (itemRestaurado) {
+                const select = tr.querySelector('.select-sku');
+                select.value = itemRestaurado.sku;
+                
+                const opt = select.options[select.selectedIndex];
+                const pesoUnitario = opt ? parseFloat(opt.getAttribute('data-peso')) || 0 : 0;
+                tr.setAttribute('data-peso-un', pesoUnitario);
+                tr.querySelector('.td-peso-un').innerText = pesoUnitario.toFixed(2);
+
+                tr.querySelector('.input-cant').value = itemRestaurado.cantidad;
+                calcularPesos(palletId);
+            }
+            
+            actualizarOpcionesDisponibles();
         }
 
-        // 🔥 NUEVA FUNCIÓN: Autocompleta la cantidad al seleccionar el SKU 🔥
-        function autoCompletarCantidad(selectElement) {
+        // Cuando el usuario elige un producto del desplegable
+        function actualizarFila(selectElement, palletId) {
             const tr = selectElement.closest('tr');
             const inputCantidad = tr.querySelector('.input-cant');
+            const tdPesoUn = tr.querySelector('.td-peso-un');
             const opcionElegida = selectElement.options[selectElement.selectedIndex];
             
-            // Sacamos el valor oculto (data-cant)
-            const cantidadSugerida = opcionElegida.getAttribute('data-cant');
+            const pesoUnitario = opcionElegida ? (parseFloat(opcionElegida.getAttribute('data-peso')) || 0) : 0;
+            tr.setAttribute('data-peso-un', pesoUnitario);
+            tdPesoUn.innerText = pesoUnitario.toFixed(2);
             
-            if (cantidadSugerida) {
-                inputCantidad.value = cantidadSugerida;
-                
-                // Un mini efecto visual para que el usuario note que se actualizó solo
-                inputCantidad.style.backgroundColor = '#dcfce7'; // Verde clarito
-                setTimeout(() => {
-                    inputCantidad.style.backgroundColor = '#fffbeb'; // Vuelve a normal
-                }, 500);
-            } else {
-                inputCantidad.value = 1;
-            }
+            // Primero seteamos a 0 para que la calculadora no se confunda
+            inputCantidad.value = 0; 
+            actualizarOpcionesDisponibles(); 
+            
+            // Le auto-llenamos con todo el saldo que le quedaba disponible
+            inputCantidad.value = inputCantidad.max;
+            
+            calcularPesos(palletId);
+            actualizarOpcionesDisponibles();
+        }
+
+        // Cuando el usuario tipea una cantidad manualmente
+        function cambioManualCant(palletId) {
+            actualizarOpcionesDisponibles(); // Esto lo baja si tipeó de más
+            calcularPesos(palletId);
+        }
+
+        function calcularPesos(palletId) {
+            const tbody = document.querySelector(`#tabla-items-${palletId} tbody`);
+            const boxTotal = document.getElementById(`box-total-${palletId}`);
+            let pesoTotalPallet = TARA_BASE;
+
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const inputCant = tr.querySelector('.input-cant');
+                const tdPesoSub = tr.querySelector('.td-peso-sub');
+                const cant = parseInt(inputCant.value) || 0;
+                const pesoUn = parseFloat(tr.getAttribute('data-peso-un')) || 0;
+                const subtotal = cant * pesoUn;
+                tdPesoSub.innerText = subtotal.toFixed(2);
+                pesoTotalPallet += subtotal;
+            });
+
+            document.getElementById(`peso-total-${palletId}`).innerText = pesoTotalPallet.toFixed(2) + " kg";
+
+            if (pesoTotalPallet > LIMITE_PESO) boxTotal.classList.add('exceso');
+            else boxTotal.classList.remove('exceso');
+
+            guardarBorrador(); 
+        }
+
+        function borrarFila(btnElement, palletId) {
+            btnElement.closest('tr').remove();
+            calcularPesos(palletId);
+            actualizarOpcionesDisponibles(); // Libera el saldo
         }
 
         function borrarPallet(palletId) {
             if(confirm('¿Seguro que querés borrar este pallet?')) {
                 document.getElementById(`pallet-${palletId}`).remove();
+                calcularPesos(palletId);
+                actualizarOpcionesDisponibles(); // Libera el saldo
+                guardarBorrador();
             }
         }
 
-        window.onload = function() {
-            crearPallet();
+        // =========================================================
+        // FINALIZAR Y LIMPIAR MEMORIA
+        // =========================================================
+        function finalizarTodo() {
+            const cards = document.querySelectorAll('.pallet-card');
+            if(cards.length === 0) return alert('Creá al menos un pallet antes de finalizar.');
+
+            if(!confirm('¿Estás seguro? Se generará el Remito y el Packing List para imprimir.')) return;
+
+            let dataPallets = [];
+            
+            cards.forEach((card, index) => {
+                let items = [];
+                card.querySelectorAll('tbody tr').forEach(tr => {
+                    const sku = tr.querySelector('.select-sku').value;
+                    const cant = tr.querySelector('.input-cant').value;
+                    if(sku) items.push({ sku: sku, cantidad: cant });
+                });
+
+                dataPallets.push({
+                    numero: index + 1,
+                    peso: card.querySelector('.total-text').innerText,
+                    medidas: card.querySelector('.input-medidas').value,
+                    items: items
+                });
+            });
+
+            const ventanaImpresion = window.open('', '_blank');
+            if (!ventanaImpresion) {
+                alert('⚠️ Tu navegador bloqueó la pestaña emergente. Por favor, permití los pop-ups para este sitio.');
+                return;
+            }
+            ventanaImpresion.document.write('<h3 style="font-family: Arial; padding: 20px;">Generando documento de Packing List... aguarde por favor.</h3>');
+
+            fetch("{{ url_for('imprimir_packing_list') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lote: LOTE_ACTUAL, pallets: dataPallets })
+            })
+            .then(response => response.text())
+            .then(html => {
+                ventanaImpresion.document.open();
+                ventanaImpresion.document.write(html);
+                ventanaImpresion.document.close();
+                
+                return fetch("{{ url_for('finalizar_packing') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lote: LOTE_ACTUAL, pallets: dataPallets })
+                });
+            })
+            .then(res => res.json())
+            .then(res => {
+                if(res.status === 'success') {
+                    localStorage.removeItem('borrador_packing_' + LOTE_ACTUAL);
+                    window.location.href = res.redirect_url;
+                } else {
+                    alert('Error al generar remito: ' + res.message);
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                alert('Hubo un error al procesar el cierre.');
+            });
+        }
+
+        // =========================================================
+        // AL CARGAR LA PÁGINA
+        // =========================================================
+        window.onload = function() { 
+            if (LOTE_ACTUAL) {
+                const borrador = localStorage.getItem('borrador_packing_' + LOTE_ACTUAL);
+                
+                if (borrador) {
+                    const palletsGuardados = JSON.parse(borrador);
+                    if (palletsGuardados.length > 0) {
+                        palletsGuardados.forEach(p => crearPallet(p));
+                    } else {
+                        crearPallet(); 
+                    }
+                } else {
+                    crearPallet(); 
+                }
+            }
+            actualizarOpcionesDisponibles();
         };
     </script>
 </body>
