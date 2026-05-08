@@ -621,20 +621,20 @@
         }
         
         // --- 🔥 FUNCIONES AJAX PARA EVITAR EL SALTO (EFECTO CANGURO) 🔥 ---
-        function sincronizarTableroInmediato() {
+        
+        // Le agregamos el parámetro "forzar" (Pase VIP)
+        function sincronizarTableroInmediato(forzar = false) {
             fetch(window.location.href)
                 .then(response => response.text())
                 .then(html => {
-                    // 🔥 DOBLE ESCUDO (DENTRO DEL FETCH) 🔥
-                    // Verificamos si tocaste algo MIENTRAS los datos viajaban por el servidor
                     let hayCheckboxesMarcados = document.querySelectorAll('.chk-remito:checked, .chk-anular-masivo:checked').length > 0;
                     let estaEscribiendo = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT';
                     let modalAbierto = document.querySelectorAll('.modal-overlay[style*="display: flex"]').length > 0;
                     let textoBuscador = document.getElementById('filtroPedidos') ? document.getElementById('filtroPedidos').value : '';
                     let filtroLote = document.getElementById('filtroLote') ? document.getElementById('filtroLote').value : 'TODOS';
 
-                    // Si estabas haciendo ALGO de esto, ABORTAMOS el reemplazo de pantalla
-                    if (hayCheckboxesMarcados || estaEscribiendo || modalAbierto || textoBuscador.length > 0 || filtroLote !== 'TODOS') {
+                    // Si NO forzamos y estás haciendo algo, el escudo bloquea la actualización
+                    if (!forzar && (hayCheckboxesMarcados || estaEscribiendo || modalAbierto || textoBuscador.length > 0 || filtroLote !== 'TODOS')) {
                         return; 
                     }
 
@@ -664,10 +664,55 @@
                         calendarioActual.innerHTML = nuevoCalendario.innerHTML;
                     }
                     
-                    // 4. Recalculamos los botones flotantes por si borraste algo
                     actualizarBtnAnular();
                     if(typeof actualizarBannerMasivo === 'function') actualizarBannerMasivo();
+
+                    // Si estabas buscando algo, volvemos a aplicar tu filtro a las tarjetas nuevas
+                    if(textoBuscador.length > 0 || filtroLote !== 'TODOS'){
+                        filtrarTarjetas();
+                    }
                 });
+        }
+
+        function iniciarSinRecargar(event, formulario, ordenId) {
+            event.preventDefault(); 
+            let btn = document.getElementById('btn-iniciar-' + ordenId);
+            btn.innerHTML = '⏳ Iniciando...';
+            btn.style.background = '#64748b'; 
+            btn.disabled = true;
+
+            fetch(formulario.action, { method: 'POST', body: new FormData(formulario) })
+            .then(res => {
+                // 🔥 Usamos el Pase VIP: (true) 🔥
+                if (res.ok) sincronizarTableroInmediato(true);
+                else { alert("Error al iniciar."); btn.disabled = false; }
+            });
+        }
+
+        function anularSinRecargar(event, formulario, ordenId) {
+            event.preventDefault(); 
+            
+            let motivo = prompt('⚠️ Estás por ANULAR esta orden de producción.\n\nIngresá el motivo de la anulación (Obligatorio):');
+            if (motivo === null) return; 
+            if (motivo.trim() === "") {
+                alert("❌ Operación cancelada. Es obligatorio escribir el motivo para poder anular el pedido.");
+                return;
+            }
+
+            let btn = document.getElementById('btn-anular-' + ordenId);
+            btn.innerHTML = '⏳ Anulando...';
+            btn.style.background = '#64748b'; 
+            btn.disabled = true;
+
+            let formData = new FormData(formulario);
+            formData.append("motivo_anulacion", motivo);
+
+            fetch(formulario.action, { method: 'POST', body: formData })
+            .then(res => {
+                // 🔥 Usamos el Pase VIP: (true) 🔥
+                if (res.ok) sincronizarTableroInmediato(true);
+                else { alert("Error al anular."); btn.disabled = false; }
+            });
         }
 
         function iniciarSinRecargar(event, formulario, ordenId) {
@@ -837,7 +882,7 @@
 
             fetch(form.action, { method: 'POST', body: formData })
             .then(res => {
-                if (res.ok) sincronizarTableroInmediato();
+                if (res.ok) sincronizarTableroInmediato(true);
                 else { alert("Error al finalizar."); btn.disabled = false; }
             });
         }
@@ -1001,7 +1046,13 @@
             });
 
             Promise.all(promesas).then(() => {
-                sincronizarTableroInmediato();
+                // Destildamos todo para "limpiar" la pantalla
+                checkboxes.forEach(chk => chk.checked = false);
+                actualizarBtnAnular();
+                
+                // 🔥 Usamos el Pase VIP: (true) para que desaparezcan de la vista 🔥
+                sincronizarTableroInmediato(true);
+                
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 btn.style.display = 'none';
