@@ -1030,35 +1030,47 @@
             btn.innerHTML = '⏳ Procesando...';
             btn.disabled = true;
 
-            let promesas = [];
-
+            // 🔥 TRUCO VISUAL: Ocultamos las tarjetas de la pantalla instantáneamente 
+            // para que no tengas que esperar a que responda el servidor.
             checkboxes.forEach(chk => {
-                let id = chk.value;
-                let formData = new FormData();
-                formData.append("motivo_anulacion", motivo);
-
-                // Sacamos la URL exacta del formulario de anulación individual que ya existe en la tarjeta
-                let formIndividual = document.getElementById('btn-anular-' + id).closest('form');
-                if (formIndividual) {
-                    let p = fetch(formIndividual.action, { method: 'POST', body: formData });
-                    promesas.push(p);
-                }
+                let tarjeta = chk.closest('.card-orden');
+                if(tarjeta) tarjeta.style.display = 'none';
             });
 
-            Promise.all(promesas).then(() => {
-                // Destildamos todo para "limpiar" la pantalla
-                checkboxes.forEach(chk => chk.checked = false);
-                actualizarBtnAnular();
-                
-                // 🔥 Usamos el Pase VIP: (true) para que desaparezcan de la vista 🔥
-                sincronizarTableroInmediato(true);
-                
+            // Juntamos todos los IDs en una sola listita
+            let idsSeleccionados = Array.from(checkboxes).map(chk => parseInt(chk.value));
+
+            // Hacemos UN SOLO viaje al servidor con el paquete completo
+            fetch("/produccion/anular_masivo", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ordenes_ids: idsSeleccionados,
+                    motivo_anulacion: motivo
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    // Limpiamos los tildes y forzamos un refresh VIP invisible
+                    checkboxes.forEach(chk => chk.checked = false);
+                    actualizarBtnAnular();
+                    sincronizarTableroInmediato(true);
+                } else {
+                    alert("⚠️ Error: " + data.message);
+                    // Si algo falló, volvemos a mostrar las tarjetas
+                    checkboxes.forEach(chk => {
+                        let tarjeta = chk.closest('.card-orden');
+                        if(tarjeta) tarjeta.style.display = '';
+                    });
+                }
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 btn.style.display = 'none';
-            }).catch(err => {
+            })
+            .catch(err => {
                 console.error(err);
-                alert("Hubo un error al anular algunas órdenes.");
+                alert("Hubo un error de conexión al anular.");
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             });

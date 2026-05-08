@@ -8395,6 +8395,45 @@ def anular_produccion_planificada(orden_id):
     flash(f"🚫 Orden {orden.sku} anulada.", "success")
     return redirect(request.referrer)
 
+@app.route('/produccion/anular_masivo', methods=['POST'])
+@login_required
+def anular_produccion_masiva():
+    # Candado de seguridad
+    if current_user.rol not in ['admin', 'supervisor', 'supervisor_produccion', 'supervisor_produccio', 'jefe_produccion', 'planificacion', 'encargado']:
+        return jsonify({'status': 'error', 'message': 'Sin permisos'}), 403
+
+    data = request.get_json()
+    ordenes_ids = data.get('ordenes_ids', [])
+    motivo = data.get('motivo_anulacion', '')
+
+    if not ordenes_ids or not motivo:
+        return jsonify({'status': 'error', 'message': 'Faltan datos para anular.'}), 400
+
+    # 1. Buscamos todas las órdenes juntas de un solo golpe
+    ordenes = OrdenProduccion.query.filter(OrdenProduccion.id.in_(ordenes_ids)).all()
+    
+    for orden in ordenes:
+        # 2. Las pasamos a anulado
+        orden.estado = 'Anulado'
+        orden.observacion = (orden.observacion or '') + f" | Anulado: {motivo}"
+        
+        # 3. Dejamos el rastro en el historial para TODAS
+        nuevo_log = Movimiento(
+            tipo='anulacion',
+            sku=orden.sku,
+            cantidad=orden.cantidad,
+            origen='PRODUCCIÓN',
+            transporte=f"MOTIVO: {motivo}",
+            usuario=current_user.username,
+            sector='produccion'
+        )
+        db.session.add(nuevo_log)
+
+    # 4. Hacemos un solo guardado masivo en la base de datos (¡Esto es lo que da la velocidad!)
+    db.session.commit()
+    
+    return jsonify({'status': 'success'})
+
 @app.route('/admin/eliminar_movimiento/<int:mov_id>', methods=['POST'])
 @login_required
 def admin_eliminar_movimiento(mov_id):
