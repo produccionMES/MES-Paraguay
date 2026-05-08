@@ -622,13 +622,22 @@
         
         // --- 🔥 FUNCIONES AJAX PARA EVITAR EL SALTO (EFECTO CANGURO) 🔥 ---
         function sincronizarTableroInmediato() {
-            // 🔥 ESCUDO ACTIVO: Leemos el estado de todos los cuadraditos justo un milisegundo antes de ir al servidor 🔥
-            let checkboxesAnular = Array.from(document.querySelectorAll('.chk-anular-masivo:checked')).map(cb => cb.value);
-            let checkboxesRemito = Array.from(document.querySelectorAll('.chk-remito:checked')).map(cb => cb.value);
-
             fetch(window.location.href)
                 .then(response => response.text())
                 .then(html => {
+                    // 🔥 DOBLE ESCUDO (DENTRO DEL FETCH) 🔥
+                    // Verificamos si tocaste algo MIENTRAS los datos viajaban por el servidor
+                    let hayCheckboxesMarcados = document.querySelectorAll('.chk-remito:checked, .chk-anular-masivo:checked').length > 0;
+                    let estaEscribiendo = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT';
+                    let modalAbierto = document.querySelectorAll('.modal-overlay[style*="display: flex"]').length > 0;
+                    let textoBuscador = document.getElementById('filtroPedidos') ? document.getElementById('filtroPedidos').value : '';
+                    let filtroLote = document.getElementById('filtroLote') ? document.getElementById('filtroLote').value : 'TODOS';
+
+                    // Si estabas haciendo ALGO de esto, ABORTAMOS el reemplazo de pantalla
+                    if (hayCheckboxesMarcados || estaEscribiendo || modalAbierto || textoBuscador.length > 0 || filtroLote !== 'TODOS') {
+                        return; 
+                    }
+
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(html, 'text/html');
                     
@@ -637,17 +646,6 @@
                     const gridActual = document.querySelector('.grid-ordenes');
                     if (nuevaGrid && gridActual) {
                         gridActual.innerHTML = nuevaGrid.innerHTML;
-
-                        // 🔥 MAGIA: Apenas pisa la pantalla, le devuelve los tildes a lo que estabas haciendo 🔥
-                        checkboxesAnular.forEach(val => {
-                            let cb = document.querySelector(`.chk-anular-masivo[value="${val}"]`);
-                            if(cb) cb.checked = true;
-                        });
-                        checkboxesRemito.forEach(val => {
-                            let cb = document.querySelector(`.chk-remito[value="${val}"]`);
-                            if(cb) cb.checked = true;
-                        });
-
                         timersData = {}; 
                         updateTimers(); 
                     }
@@ -668,10 +666,7 @@
                     
                     // 4. Recalculamos los botones flotantes por si borraste algo
                     actualizarBtnAnular();
-                    actualizarBannerMasivo();
-
-                    // 5. Aplicamos los filtros de texto por si justo estabas buscando algo
-                    filtrarTarjetas();
+                    if(typeof actualizarBannerMasivo === 'function') actualizarBannerMasivo();
                 });
         }
 
