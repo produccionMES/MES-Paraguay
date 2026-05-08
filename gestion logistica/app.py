@@ -7796,140 +7796,131 @@ def ventas():
         flash("🚫 Acceso denegado.", "error")
         return redirect(url_for('home'))
 
-    # 1. Atrapamos los filtros primero para usarlos EN TODO EL TABLERO
-    anio_actual_real = datetime.now().date().year
+    # 1. Filtros básicos
+    hoy_obj = datetime.now().date()
+    anio_actual_real = hoy_obj.year
     anio_ver = request.args.get('anio_filtro', anio_actual_real, type=int)
     es_anio_actual = (anio_ver == anio_actual_real)
-
+    
     q_sku = request.args.get('q_sku', '').strip().upper()
     q_desc = request.args.get('q_desc', '').strip().upper()
-    q_fecha_desde = request.args.get('q_fecha_desde', '').strip()
-    q_fecha_hasta = request.args.get('q_fecha_hasta', '').strip()
     page = request.args.get('page', 1, type=int)
 
+    # Años para el selector (Cacheable o rápido)
     años_disponibles = db.session.query(func.extract('year', RegistroVenta.fecha_venta)).distinct().all()
     lista_años = sorted([int(a[0]) for a in años_disponibles if a[0]], reverse=True)
-    hoy_obj = datetime.now().date()
 
     # =========================================================================
-    # 🔥 MAGIA: BASES DE BÚSQUEDA GLOBALES (Afectan gráficos, números y rankings)
+    # 🔥 OPTIMIZACIÓN 1: MATEMÁTICA EN SQL (No más bucles 'for' en Python)
     # =========================================================================
-    query_base = DetalleVenta.query.join(RegistroVenta)
-    ranking_base = db.session.query(DetalleVenta.sku, func.sum(DetalleVenta.cantidad).label('total_cant')).join(RegistroVenta)
-    suma_base = db.session.query(func.sum(DetalleVenta.cantidad)).join(RegistroVenta)
-
-    # Si buscás "DRAX", se lo aplicamos A TODO
-    if q_sku:
-        query_base = query_base.filter(DetalleVenta.sku.ilike(f"%{q_sku}%"))
-        ranking_base = ranking_base.filter(DetalleVenta.sku.ilike(f"%{q_sku}%"))
-        suma_base = suma_base.filter(DetalleVenta.sku.ilike(f"%{q_sku}%"))
-    if q_desc:
-        query_base = query_base.filter(DetalleVenta.descripcion.ilike(f"%{q_desc}%"))
-        ranking_base = ranking_base.filter(DetalleVenta.descripcion.ilike(f"%{q_desc}%"))
-        suma_base = suma_base.filter(DetalleVenta.descripcion.ilike(f"%{q_desc}%"))
-
-    # Inicializamos variables
-    v_hoy = v_semana = v_mes = v_anio = 0
-    labels_7d = []
-    datos_7d = []
-    dict_meses = {}
-
-    # 3. Lógica Historial vs Año Específico
+    
+    # Base de filtros para reutilizar
+    filtros = []
+    if q_sku: filtros.append(DetalleVenta.sku.ilike(f"%{q_sku}%"))
+    if q_desc: filtros.append(DetalleVenta.descripcion.ilike(f"%{q_desc}%"))
+    
     if anio_ver != 0:
         inicio_anio = datetime(anio_ver, 1, 1).date()
         fin_anio = datetime(anio_ver, 12, 31).date()
-        
-        q_anio = suma_base.filter(RegistroVenta.fecha_venta >= inicio_anio, RegistroVenta.fecha_venta <= fin_anio)
-        v_anio = q_anio.scalar() or 0
-        
-        ventas_anio_raw = query_base.with_entities(RegistroVenta.fecha_venta, DetalleVenta.cantidad).filter(RegistroVenta.fecha_venta >= inicio_anio, RegistroVenta.fecha_venta <= fin_anio).all()
-        for v in ventas_anio_raw:
-            mes = v.fecha_venta.month
-            dict_meses[mes] = dict_meses.get(mes, 0) + v.cantidad
+        filtros.append(RegistroVenta.fecha_venta >= inicio_anio)
+        filtros.append(RegistroVenta.fecha_venta <= fin_anio)
 
-        if es_anio_actual:
-            inicio_mes = hoy_obj.replace(day=1).strftime('%Y-%m-%d')
-            inicio_semana = (hoy_obj - timedelta(days=hoy_obj.weekday())).strftime('%Y-%m-%d')
-            hoy_str = hoy_obj.strftime('%Y-%m-%d')
-
-            v_hoy = suma_base.filter(func.date(RegistroVenta.fecha_venta) == hoy_str).scalar() or 0
-            v_semana = suma_base.filter(func.date(RegistroVenta.fecha_venta) >= inicio_semana).scalar() or 0
-            v_mes = suma_base.filter(func.date(RegistroVenta.fecha_venta) >= inicio_mes).scalar() or 0
-            
-            fecha_hace_7 = hoy_obj - timedelta(days=6)
-            ventas_7d_raw = query_base.with_entities(RegistroVenta.fecha_venta, DetalleVenta.cantidad).filter(func.date(RegistroVenta.fecha_venta) >= fecha_hace_7.strftime('%Y-%m-%d')).all()
-            dict_7d = {}
-            for v in ventas_7d_raw:
-                fecha_str = v.fecha_venta.strftime('%d/%m') 
-                dict_7d[fecha_str] = dict_7d.get(fecha_str, 0) + v.cantidad
-
-            for i in range(7):
-                dia = fecha_hace_7 + timedelta(days=i)
-                dia_str = dia.strftime('%d/%m')
-                labels_7d.append(dia_str)
-                datos_7d.append(dict_7d.get(dia_str, 0))
-
-    else:
-        v_anio = suma_base.scalar() or 0
-        ventas_anio_raw = query_base.with_entities(RegistroVenta.fecha_venta, DetalleVenta.cantidad).all()
-        for v in ventas_anio_raw:
-            mes = v.fecha_venta.month
-            dict_meses[mes] = dict_meses.get(mes, 0) + v.cantidad
-
-    # 4. RANKINGS (Afectados por el filtro)
-    ranking_query_act = ranking_base
-    if anio_ver != 0:
-        ranking_query_act = ranking_query_act.filter(RegistroVenta.fecha_venta >= inicio_anio, RegistroVenta.fecha_venta <= fin_anio)
-        
-    ranking_mes = ranking_query_act.group_by(DetalleVenta.sku).order_by(func.sum(DetalleVenta.cantidad).desc()).limit(20).all()
+    # --- A. Totales por Mes (Para el gráfico de barras) ---
+    # En lugar de traer 5000 filas, traemos solo 12 filas (una por mes)
+    ventas_por_mes = db.session.query(
+        func.extract('month', RegistroVenta.fecha_venta).label('mes'),
+        func.sum(DetalleVenta.cantidad).label('total')
+    ).join(RegistroVenta).filter(*filtros).group_by('mes').all()
     
+    dict_meses = {int(m): t for m, t in ventas_por_mes}
+    v_anio = sum(dict_meses.values())
+
+    # --- B. Stats Rápidas (Hoy, Semana, Mes) ---
+    v_hoy = v_semana = v_mes = 0
+    labels_7d = []
+    datos_7d = []
+
+    if es_anio_actual:
+        inicio_mes = hoy_obj.replace(day=1)
+        inicio_semana = hoy_obj - timedelta(days=hoy_obj.weekday())
+        
+        # Consultas escalares directas (muy rápidas)
+        v_hoy = db.session.query(func.sum(DetalleVenta.cantidad)).join(RegistroVenta)\
+                  .filter(func.date(RegistroVenta.fecha_venta) == hoy_obj, *filtros[:-2] if anio_ver != 0 else filtros).scalar() or 0
+        
+        v_semana = db.session.query(func.sum(DetalleVenta.cantidad)).join(RegistroVenta)\
+                  .filter(RegistroVenta.fecha_venta >= inicio_semana, *filtros[:-2] if anio_ver != 0 else filtros).scalar() or 0
+        
+        v_mes = db.session.query(func.sum(DetalleVenta.cantidad)).join(RegistroVenta)\
+                  .filter(RegistroVenta.fecha_venta >= inicio_mes, *filtros[:-2] if anio_ver != 0 else filtros).scalar() or 0
+
+        # --- C. Gráfico 7 Días (Matemática en SQL) ---
+        fecha_hace_7 = hoy_obj - timedelta(days=6)
+        ventas_7d = db.session.query(
+            func.date(RegistroVenta.fecha_venta).label('fecha'),
+            func.sum(DetalleVenta.cantidad).label('total')
+        ).join(RegistroVenta).filter(RegistroVenta.fecha_venta >= fecha_hace_7, *filtros[:-2] if anio_ver != 0 else filtros)\
+         .group_by('fecha').all()
+        
+        dict_7d = {v.fecha.strftime('%d/%m'): v.total for v in ventas_7d}
+        for i in range(7):
+            d_str = (fecha_hace_7 + timedelta(days=i)).strftime('%d/%m')
+            labels_7d.append(d_str)
+            datos_7d.append(dict_7d.get(d_str, 0))
+
+    # =========================================================================
+    # 🔥 OPTIMIZACIÓN 2: RANKINGS LIMITADOS
+    # =========================================================================
+    ranking_mes = db.session.query(DetalleVenta.sku, func.sum(DetalleVenta.cantidad).label('total_cant'))\
+                    .join(RegistroVenta).filter(*filtros).group_by(DetalleVenta.sku)\
+                    .order_by(func.sum(DetalleVenta.cantidad).desc()).limit(15).all()
+
     ranking_semana = []
     if es_anio_actual:
-        inicio_semana_str = (hoy_obj - timedelta(days=hoy_obj.weekday())).strftime('%Y-%m-%d')
-        ranking_semana = ranking_base.filter(func.date(RegistroVenta.fecha_venta) >= inicio_semana_str)\
-                         .group_by(DetalleVenta.sku).order_by(func.sum(DetalleVenta.cantidad).desc()).limit(20).all()
+        ranking_semana = db.session.query(DetalleVenta.sku, func.sum(DetalleVenta.cantidad).label('total_cant'))\
+                           .join(RegistroVenta).filter(RegistroVenta.fecha_venta >= (hoy_obj - timedelta(days=7)), *filtros[:-2] if anio_ver != 0 else filtros)\
+                           .group_by(DetalleVenta.sku).order_by(func.sum(DetalleVenta.cantidad).desc()).limit(15).all()
 
-    # 5. Gráficos
-    nombres_meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-    datos_anio = [dict_meses.get(i, 0) for i in range(1, 13)]
-    graficos_data = {'labels_7d': labels_7d, 'datos_7d': datos_7d, 'labels_anio': nombres_meses, 'datos_anio': datos_anio}
-
-    # 6. STOCK FÍSICO CENTRALIZADO (Afectado por el filtro)
-    catalogo_maestro = Producto.query.filter(Producto.sector == 'logistica')
-    if q_sku: catalogo_maestro = catalogo_maestro.filter(Producto.sku.ilike(f"%{q_sku}%"))
-    if q_desc: catalogo_maestro = catalogo_maestro.filter(Producto.descripcion.ilike(f"%{q_desc}%"))
-        
-    catalogo_maestro = catalogo_maestro.order_by(Producto.sku.asc()).all()
-    
-    stock_real = db.session.query(
-        Producto.sku, func.sum(Item.cantidad)
+    # =========================================================================
+    # 🔥 OPTIMIZACIÓN 3: STOCK DISPONIBLE (Una sola consulta)
+    # =========================================================================
+    # En lugar de traer todo el catálogo y luego buscar el stock, lo unimos
+    stock_query = db.session.query(
+        Producto.sku, 
+        Producto.descripcion, 
+        func.sum(Item.cantidad).label('total_stock')
     ).join(Item, Producto.id == Item.producto_id)\
      .join(Ubicacion, Item.ubicacion_id == Ubicacion.id)\
      .join(Rack, Ubicacion.rack_id == Rack.id)\
      .filter(Rack.sector == 'logistica', Item.cantidad > 0)
-     
-    if q_sku: stock_real = stock_real.filter(Producto.sku.ilike(f"%{q_sku}%"))
-    if q_desc: stock_real = stock_real.filter(Producto.descripcion.ilike(f"%{q_desc}%"))
-     
-    stock_real = stock_real.group_by(Producto.sku).all()
-    dict_stock = {s[0]: s[1] for s in stock_real}
-    
-    stock_disponible = [
-        {'sku': p.sku, 'descripcion': p.descripcion, 'total_stock': dict_stock.get(p.sku, 0)} 
-        for p in catalogo_maestro
-    ]
 
-    # 7. Tabla Paginada
-    if q_fecha_desde: query_base = query_base.filter(func.date(RegistroVenta.fecha_venta) >= q_fecha_desde)
-    if q_fecha_hasta: query_base = query_base.filter(func.date(RegistroVenta.fecha_venta) <= q_fecha_hasta)
+    if q_sku: stock_query = stock_query.filter(Producto.sku.ilike(f"%{q_sku}%"))
+    if q_desc: stock_query = stock_query.filter(Producto.descripcion.ilike(f"%{q_desc}%"))
 
-    movimientos_paginados = query_base.order_by(RegistroVenta.fecha_venta.desc(), RegistroVenta.id.desc()).paginate(page=page, per_page=20, error_out=False)
+    stock_disponible = stock_query.group_by(Producto.sku, Producto.descripcion).order_by(Producto.sku.asc()).all()
+
+    # =========================================================================
+    # 🔥 OPTIMIZACIÓN 4: CARGA ANSIOSA (Eager Loading) PARA LA TABLA
+    # =========================================================================
+    # Agregamos .options(joinedload(...)) si tenés relaciones para que no haga N+1
+    q_fecha_desde = request.args.get('q_fecha_desde', '').strip()
+    q_fecha_hasta = request.args.get('q_fecha_hasta', '').strip()
+
+    query_final = DetalleVenta.query.join(RegistroVenta).filter(*filtros)
+    if q_fecha_desde: query_final = query_final.filter(func.date(RegistroVenta.fecha_venta) >= q_fecha_desde)
+    if q_fecha_hasta: query_final = query_final.filter(func.date(RegistroVenta.fecha_venta) <= q_fecha_hasta)
+
+    movimientos_paginados = query_final.order_by(RegistroVenta.fecha_venta.desc(), RegistroVenta.id.desc())\
+                                       .paginate(page=page, per_page=20, error_out=False)
+
+    nombres_meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    datos_anio = [dict_meses.get(i, 0) for i in range(1, 13)]
 
     return render_template('ventas.html', 
                            movimientos=movimientos_paginados, 
                            stats={'hoy': int(v_hoy), 'semana': int(v_semana), 'mes': int(v_mes), 'anio': int(v_anio)}, 
                            lista_años=lista_años, anio_ver=anio_ver,
-                           graficos_data=graficos_data, 
+                           graficos_data={'labels_7d': labels_7d, 'datos_7d': datos_7d, 'labels_anio': nombres_meses, 'datos_anio': datos_anio}, 
                            ranking_mes=ranking_mes, ranking_semana=ranking_semana, 
                            stock_disponible=stock_disponible,
                            q_sku=q_sku, q_desc=q_desc, q_fecha_desde=q_fecha_desde, q_fecha_hasta=q_fecha_hasta, 
