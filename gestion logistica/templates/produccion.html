@@ -622,6 +622,10 @@
         
         // --- 🔥 FUNCIONES AJAX PARA EVITAR EL SALTO (EFECTO CANGURO) 🔥 ---
         function sincronizarTableroInmediato() {
+            // 🔥 ESCUDO ACTIVO: Leemos el estado de todos los cuadraditos justo un milisegundo antes de ir al servidor 🔥
+            let checkboxesAnular = Array.from(document.querySelectorAll('.chk-anular-masivo:checked')).map(cb => cb.value);
+            let checkboxesRemito = Array.from(document.querySelectorAll('.chk-remito:checked')).map(cb => cb.value);
+
             fetch(window.location.href)
                 .then(response => response.text())
                 .then(html => {
@@ -633,6 +637,17 @@
                     const gridActual = document.querySelector('.grid-ordenes');
                     if (nuevaGrid && gridActual) {
                         gridActual.innerHTML = nuevaGrid.innerHTML;
+
+                        // 🔥 MAGIA: Apenas pisa la pantalla, le devuelve los tildes a lo que estabas haciendo 🔥
+                        checkboxesAnular.forEach(val => {
+                            let cb = document.querySelector(`.chk-anular-masivo[value="${val}"]`);
+                            if(cb) cb.checked = true;
+                        });
+                        checkboxesRemito.forEach(val => {
+                            let cb = document.querySelector(`.chk-remito[value="${val}"]`);
+                            if(cb) cb.checked = true;
+                        });
+
                         timersData = {}; 
                         updateTimers(); 
                     }
@@ -644,15 +659,19 @@
                         totalesActuales.innerHTML = nuevosTotales.innerHTML;
                     }
                     
-                    // 🔥 3. NUEVO: ACTUALIZAMOS EL CRONOGRAMA DE PRODUCCIÓN 🔥
+                    // 3. ACTUALIZAMOS EL CRONOGRAMA DE PRODUCCIÓN
                     const nuevoCalendario = doc.querySelector('.calendario-table');
                     const calendarioActual = document.querySelector('.calendario-table');
                     if(nuevoCalendario && calendarioActual) {
                         calendarioActual.innerHTML = nuevoCalendario.innerHTML;
                     }
                     
-                    // Recalculamos el botón de anular por si algo se borró
+                    // 4. Recalculamos los botones flotantes por si borraste algo
                     actualizarBtnAnular();
+                    actualizarBannerMasivo();
+
+                    // 5. Aplicamos los filtros de texto por si justo estabas buscando algo
+                    filtrarTarjetas();
                 });
         }
 
@@ -999,21 +1018,23 @@
             });
         }
 
-        // --- SINCRONIZACIÓN MODIFICADA PARA NO BORRAR LA BÚSQUEDA NI CERRAR MODALES ---
+        // --- SINCRONIZACIÓN INTELIGENTE (EL ESCUDO) ---
         function sincronizarTablero() {
             let textoBuscador = document.getElementById('filtroPedidos').value;
+            let filtroLote = document.getElementById('filtroLote').value;
             
             let modalBuscadorOpen = document.getElementById('modal-buscador').style.display === 'flex';
             let modalConfigOpen = document.getElementById('modalConfig').style.display === 'flex';
             let modalCalendarioOpen = document.getElementById('modalCalendarioProd') && document.getElementById('modalCalendarioProd').style.display === 'flex';
             let modalDespieceOpen = document.getElementById('modalDespiece') && document.getElementById('modalDespiece').style.display === 'flex';
             
-            // 🔥 ESCUDO: Si hay cuadraditos tildados, no recargues la pantalla o se van a destildar solos
+            // Si hay checkboxes marcados, o si el usuario está escribiendo en algún lado
             let hayCheckboxesMarcados = document.querySelectorAll('.chk-remito:checked, .chk-anular-masivo:checked').length > 0;
+            let estaEscribiendo = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT';
             
-            if(modalBuscadorOpen || modalConfigOpen || modalCalendarioOpen || modalDespieceOpen || textoBuscador.length > 0 || document.activeElement.tagName === 'INPUT' || hayCheckboxesMarcados) return; 
+            // Bloqueamos la actualización visual para no molestar al usuario
+            if(modalBuscadorOpen || modalConfigOpen || modalCalendarioOpen || modalDespieceOpen || textoBuscador.length > 0 || filtroLote !== 'TODOS' || estaEscribiendo || hayCheckboxesMarcados) return; 
 
-            // Reutilizamos la función inmediata que ya hace el trabajo
             sincronizarTableroInmediato();
         }
         setInterval(sincronizarTablero, 2000);
